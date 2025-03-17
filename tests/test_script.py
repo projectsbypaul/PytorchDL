@@ -21,6 +21,9 @@ def read_array_test():
     plt.show()
 
 
+def main() -> None:
+   read_array_test()
+
 if __name__ == "__main__":
-    read_array()
+    main()
 
