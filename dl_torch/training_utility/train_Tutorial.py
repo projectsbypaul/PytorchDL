@@ -5,6 +5,8 @@ import torchvision
 import torchvision.transforms as transforms
 import matplotlib.pyplot as plt
 import numpy as np
+import time
+from tqdm import tqdm  # pip install tqdm
 
 from dl_torch.models.TutorialModels import SimpleMLP
 
@@ -125,20 +127,10 @@ def train_on_cifar10() -> None:
     test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size,
                                               shuffle=False)
 
+    print(f"Train on {len(train_loader.dataset)} samples, validate on {len(test_loader.dataset)} samples")
+
     classes = ('plane', 'car', 'bird', 'cat',
                'deer', 'dog', 'frog', 'horse', 'ship', 'truck')
-
-    def imshow(imgs):
-        imgs = imgs / 2 + 0.5  # unnormalize
-        npimgs = imgs.numpy()
-        plt.imshow(np.transpose(npimgs, (1, 2, 0)))
-        plt.show()
-
-    # one batch of random training images
-    dataiter = iter(train_loader)
-    images, labels = next(dataiter)
-    img_grid = torchvision.utils.make_grid(images[0:25], nrow=5)
-    imshow(img_grid)
 
     model = ConvNet().to(device)
 
@@ -149,6 +141,11 @@ def train_on_cifar10() -> None:
     for epoch in range(num_epochs):
 
         running_loss = 0.0
+
+        epoch_start = time.time()
+
+        # Display epoch header
+        print(f"Epoch {epoch + 1}/{num_epochs}")
 
         for i, (images, labels) in enumerate(train_loader):
             images = images.to(device)
@@ -165,18 +162,29 @@ def train_on_cifar10() -> None:
 
             running_loss += loss.item()
 
-        print(f'[{epoch + 1}] loss: {running_loss / n_total_steps:.3f}')
+        # Calculate average loss and time per epoch
+        avg_loss = running_loss / len(train_loader)
+        epoch_time = time.time() - epoch_start
+        time_per_step = epoch_time / len(train_loader.dataset)
+
+        # Evaluate on validation set
+        model.eval()
+        val_loss = 0.0
+        with torch.no_grad():
+            for images, labels in test_loader:
+                images = images.to(device)
+                labels = labels.to(device)
+                outputs = model(images)
+                loss = criterion(outputs, labels)
+                val_loss += loss.item()
+        avg_val_loss = val_loss / len(test_loader)
+
+        print(f"{len(train_loader.dataset)}/{len(train_loader.dataset)} [==============================] - "
+              f"{epoch_time:.0f}s {time_per_step * 1e6:.0f}us/step - loss: {avg_loss:.4f} - val_loss: {avg_val_loss:.4f}")
 
     print('Finished Training')
     PATH = '../../data/model_weights/cnn.pth'
     torch.save(model.state_dict(), PATH)
-
-    loaded_model = ConvNet()
-    state_dict = torch.load(PATH)
-
-    loaded_model.load_state_dict(state_dict)  # it takes the loaded dictionary, not the path file itself
-    loaded_model.to(device)
-    loaded_model.eval()
 
     with torch.no_grad():
         n_correct = 0
@@ -192,21 +200,83 @@ def train_on_cifar10() -> None:
             _, predicted = torch.max(outputs, 1)
             n_correct += (predicted == labels).sum().item()
 
-            outputs2 = loaded_model(images)
-            _, predicted2 = torch.max(outputs2, 1)
-            n_correct2 += (predicted2 == labels).sum().item()
-
         acc = 100.0 * n_correct / n_samples
         print(f'Accuracy of the model: {acc} %')
 
-        acc = 100.0 * n_correct2 / n_samples
-        print(f'Accuracy of the loaded model: {acc} %')
+    '''
+
+    loaded_model = ConvNet()
+    state_dict = torch.load(PATH)
+
+    loaded_model.load_state_dict(state_dict)  # it takes the loaded dictionary, not the path file itself
+    loaded_model.to(device)
+    loaded_model.eval()
+    
+    '''
+
+def test_on_cifar10() -> None:
+
+    print("Evaluating Model")
+
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    print("Using device:", device)
+    
+    #Set up data
+
+    transform = transforms.Compose(
+        [transforms.ToTensor(),
+         transforms.Normalize((0.5, 0.5, 0.5), (0.5, 0.5, 0.5))])
+
+    batch_size: int = 32
+
+    # CIFAR10: 60000 32x32 color images in 10 classes, with 6000 images per class
+    train_dataset = torchvision.datasets.CIFAR10(root='../../data/datasets', train=True,
+                                                 download=True, transform=transform)
+
+    test_dataset = torchvision.datasets.CIFAR10(root='../../data/datasets', train=False,
+                                                download=True, transform=transform)
+
+    train_loader = torch.utils.data.DataLoader(train_dataset, batch_size=batch_size,
+                                               shuffle=True)
+
+    test_loader = torch.utils.data.DataLoader(test_dataset, batch_size=batch_size,
+                                              shuffle=False)
+    
+    #load model
+
+    PATH = '../../data/model_weights/cnn.pth'
+
+    model = ConvNet()
+    state_dict = torch.load(PATH)
+
+    model.load_state_dict(state_dict)  # it takes the loaded dictionary, not the path file itself
+    model.to(device)
+    model.eval()
+    
+    with torch.no_grad():
+        n_correct = 0
+        n_correct2 = 0
+        n_samples = len(test_loader.dataset)
+
+        for images, labels in test_loader:
+            images = images.to(device)
+            labels = labels.to(device)
+            outputs = model(images)
+
+            # max returns (value ,index)
+            _, predicted = torch.max(outputs, 1)
+            n_correct += (predicted == labels).sum().item()
+
+        acc = 100.0 * n_correct / n_samples
+        print(f'Accuracy of the model: {acc} %')
 
 
 
 def main() -> None:
     # train_on_mnist()
-    train_on_cifar10()
+    # train_on_cifar10()
+    test_on_cifar10()
 
 if __name__ == '__main__':
     main()
