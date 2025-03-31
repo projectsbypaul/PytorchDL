@@ -116,7 +116,6 @@ class Decoder_binary(nn.Module):
         x = self.conv1(x)
         return x
 
-
 class Autoencoder(nn.Module):
     def __init__(self, n_feature : int = 16):
         super(Autoencoder, self).__init__()
@@ -143,11 +142,10 @@ class Autoencoder_binary(nn.Module):
 
         return x
 
-
 def main():
     # Instantiate the model
     autoencoder = Autoencoder_binary()
-    print(autoencoder)
+    # print(autoencoder)
 
 if __name__  =="__main__":
     main()

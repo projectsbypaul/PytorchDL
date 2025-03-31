@@ -7,6 +7,7 @@ import os
 from typing import List, Tuple, Dict, Optional
 from utility.data_exchange import cppIO
 import numpy as np
+import yaml
 
 def parse_bin_array_data_split_by_class(root_dir: str, exclude_subfolder : list[str] = None) -> tuple[Tensor, Tensor, dict[int, str]]:
     """
@@ -70,8 +71,49 @@ def parse_bin_array_data_split_by_class(root_dir: str, exclude_subfolder : list[
 
     return x_tensor, y_tensor, class_dict
 
-def main() -> None:
+def parse_yaml(file_name : str):
+    # Load the YAML file
 
+    with open(file_name, 'r') as file:
+        data = yaml.safe_load(file)
+
+    # Print the parsed data
+    return data
+
+def parse_obj(file_name :  str):
+    """
+    Parses an obj for faces and vertices.
+
+    Args:
+        - file_name:param : str - path to file location
+    Returns:
+        Parsed obj data
+          - vertices:return - parsed vertices
+          - faces:return -  parsed faces
+    """
+
+    vertices = []
+    faces = []
+
+    with open(file_name, 'r') as file:
+
+        for line in file:
+
+            if line.startswith('v '):
+
+                parts = line.strip().split()
+                vertex = list(map(float, parts[1:4]))
+                vertices.append(vertex)
+
+            elif line.startswith('f '):
+
+                parts = line.strip().split()
+                face = [int(p.split('/')[0]) - 1 for p in parts[1:]]
+                faces.append(face)
+
+    return vertices, faces
+
+def main() -> None:
   return
 
 if __name__ == "__main__":
