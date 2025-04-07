@@ -7,6 +7,9 @@ import matplotlib.colors as mcolors
 import pyvista as pv
 import os
 import re
+from matplotlib import cm
+from pyvista import LookupTable
+from matplotlib.colors import Normalize
 
 def vote_voxels():
     folder_path = r"C:\Local_Data\cropping_test"
@@ -51,7 +54,7 @@ def vote_voxels():
 
     class_lot = dict(zip(class_list, class_indices))
 
-    segment_index = 15
+    segment_index = 0
 
     _, _, sdf = cppIO.read_3d_array_from_binary(sorted_paths[segment_index])
 
@@ -88,14 +91,68 @@ def vote_voxels():
                 label[x,y,z, indices[0]] = 1
             if len(indices) > 1:
                 label[x, y, z, : ] = np.zeros(shape=len(class_list))
-                label[x, y, z, class_lot["Edge"]] = 1
+                label[x, y, z, indices[0]] = 1
+                # label[x, y, z, class_lot["Edge"]] = 1
         else:
             label[x, y, z, class_lot["Void"]] = 1
 
-    print()
+    # Define RGB (0–255) and opacity (0.0–1.0) for all classes, including 'Void'
+    custom_colors = {
 
+        'Cone': (0, 0, 255),  # blue
+        'Cylinder': (255, 0, 0),  # red
+        'Edge': (255, 255, 0),  # yellow
+        'Plane': (255, 192, 203),  # pink
+        'Sphere': (128, 0, 0),  # dark red
+        'Torus': (0, 255, 255),  # cyan
+        'Void': (255, 255, 255),  # white
+    }
+    custom_opacity = {
+        'Cone': 1.0,
+        'Cylinder': 1.0,
+        'Edge': 1.0,
+        'Plane': 1.0,
+        'Sphere': 1.0,
+        'Torus': 1.0,
+        'Void': 0.0,
+    }
 
+    # Create a PyVista plotter
+    plotter = pv.Plotter()
 
+    # Decode labels
+    label_indices = np.argmax(label, axis=-1)
+
+    # Iterate through the grid
+    for x in range(grid_dim):
+        for y in range(grid_dim):
+            for z in range(grid_dim):
+                class_idx = label_indices[x, y, z]
+                temp_label = class_list[class_idx]
+
+                # Skip invisible (Void) cubes
+                if custom_opacity[temp_label] == 0.0:
+                    continue
+
+                # Create a cube centered at the grid location
+                cube = pv.Cube(center=(x, y, z), x_length=1.0, y_length=1.0, z_length=1.0)
+
+                color = custom_colors[temp_label]
+                color_rgb = tuple(c / 255 for c in color)
+
+                plotter.add_mesh(cube, color=color_rgb, opacity=custom_opacity[temp_label], show_edges=False)
+
+    # ---- Create Custom Legend ----
+    legend_entries = []
+    for label in class_list:
+        if custom_opacity[label] == 0.0:
+            continue
+        rgb = tuple(c / 255 for c in custom_colors[label])
+        legend_entries.append([label, rgb])
+
+    plotter.add_legend(legend_entries, bcolor='white', face='circle', size=(0.2, 0.25), loc='lower right')
+
+    plotter.show()
 
 
 
