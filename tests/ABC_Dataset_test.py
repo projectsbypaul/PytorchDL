@@ -10,6 +10,7 @@ import re
 from matplotlib import cm
 from pyvista import LookupTable
 from matplotlib.colors import Normalize
+from dl_torch.data_utility.HelperFunctionsABC import evaluate_voxel_class_kernel
 
 def vote_voxels():
     folder_path = r"C:\Local_Data\cropping_test"
@@ -54,48 +55,6 @@ def vote_voxels():
 
     class_lot = dict(zip(class_list, class_indices))
 
-    segment_index = 0
-
-    _, _, sdf = cppIO.read_3d_array_from_binary(sorted_paths[segment_index])
-
-    grid_dim = sdf.shape[0]
-
-    origin = np.asarray(origins[segment_index])
-
-    top = origin + [grid_dim -1, grid_dim -1, grid_dim-1]
-
-    label = np.zeros(shape=[grid_dim, grid_dim, grid_dim, class_list.shape[0]])
-
-    write_count = 0
-
-    for vert_index, vert in enumerate(vertex_to_index_map):
-        if origin[0] <= vert[0] <= top[0] and origin[1] <= vert[1] <= top[1] and origin[2] <= vert[2] <= top[2]:
-            grid_index = vert - origin
-            try:
-                type_string = vertex_type_map[vert_index]
-                one_hot_index = class_lot[type_string[0]]
-                label[int(grid_index[0]), int(grid_index[1]), int(grid_index[2]), one_hot_index] += 1
-                write_count += 1
-            except:
-                print(f"Vertex {vert_index} is not mappable")
-
-    print(f"wrote {write_count} labels")
-
-    for x, y, z in np.ndindex((grid_dim, grid_dim, grid_dim)):
-        class_vector = label[x, y, z, :]
-        if class_vector.sum() > 1:
-            print(f"label[{x}, {y}, {z}] = {class_vector}")
-            max_value = class_vector.max()
-            indices = np.where(class_vector == max_value)[0]
-            if len(indices) == 1:
-                label[x,y,z, indices[0]] = 1
-            if len(indices) > 1:
-                label[x, y, z, : ] = np.zeros(shape=len(class_list))
-                label[x, y, z, indices[0]] = 1
-                # label[x, y, z, class_lot["Edge"]] = 1
-        else:
-            label[x, y, z, class_lot["Void"]] = 1
-
     # Define RGB (0–255) and opacity (0.0–1.0) for all classes, including 'Void'
     custom_colors = {
 
@@ -117,30 +76,122 @@ def vote_voxels():
         'Void': 0.0,
     }
 
+    grid_segments = []
+
+    for segment_index, segment in enumerate(sorted_paths):
+
+        _, _, sdf = cppIO.read_3d_array_from_binary(sorted_paths[segment_index])
+
+        grid_dim = sdf.shape[0]
+
+        grid_spacing = 15
+
+        spacing = np.asarray([grid_spacing, grid_spacing, grid_spacing])
+
+        origin = np.asarray(origins[segment_index])
+
+        top = origin + [grid_dim - 1, grid_dim - 1, grid_dim - 1]
+
+        label = np.zeros(shape=[grid_dim, grid_dim, grid_dim, class_list.shape[0]])
+
+        write_count = 0
+
+        for vert_index, vert in enumerate(vertex_to_index_map):
+            if origin[0] <= vert[0] <= top[0] and origin[1] <= vert[1] <= top[1] and origin[2] <= vert[2] <= top[2]:
+                grid_index = vert - origin
+                try:
+                    type_string = vertex_type_map[vert_index]
+                    one_hot_index = class_lot[type_string[0]]
+                    label[int(grid_index[0]), int(grid_index[1]), int(grid_index[2]), one_hot_index] += 1
+                    write_count += 1
+                except:
+                    print(f"Vertex {vert_index} is not mappable")
+
+        print(f"wrote {write_count} labels")
+
+        for x, y, z in np.ndindex((grid_dim, grid_dim, grid_dim)):
+            class_vector = label[x, y, z, :]
+            if class_vector.sum() > 1:
+                # print(f"label[{x}, {y}, {z}] = {class_vector}")
+                max_value = class_vector.max()
+                indices = np.where(class_vector == max_value)[0]
+                if len(indices) == 1:
+                    label[x, y, z, indices[0]] = 1
+                if len(indices) > 1:
+                    label[x, y, z, :] = np.zeros(shape=len(class_list))
+                    label[x, y, z, indices[0]] = 1
+                    # label[x, y, z, class_lot["Edge"]] = 1
+            else:
+                label[x, y, z, class_lot["Void"]] = 1
+
+        voxel_kernel = 3
+        class_weights = [1, 1, 1, 1, 1, 1, 1 / (voxel_kernel ** 3)]
+        counter = np.zeros(shape=len(class_list))
+
+        label_dense = label.copy()
+
+        for x, y, z in np.ndindex((grid_dim, grid_dim, grid_dim)):
+            class_vector = label[x, y, z, :]
+            if class_vector.argmax() == class_lot["Void"]:
+                max_index = evaluate_voxel_class_kernel(label, (x, y, z), voxel_kernel, class_weights)
+                counter[max_index] += 1
+                if max_index < 6:
+                    new_vector = np.zeros(shape=len(class_list))
+                    new_vector[max_index] = 1
+                    label_dense[x, y, z, :] = new_vector
+
+        print(f"processing of grid {segment_index} done")
+
+        grid_segments.append(label_dense)
+
     # Create a PyVista plotter
     plotter = pv.Plotter()
 
-    # Decode labels
-    label_indices = np.argmax(label, axis=-1)
+    cubes = []
 
-    # Iterate through the grid
-    for x in range(grid_dim):
-        for y in range(grid_dim):
-            for z in range(grid_dim):
-                class_idx = label_indices[x, y, z]
-                temp_label = class_list[class_idx]
+    for index, grid in enumerate(grid_segments):
+        # Decode labels
+        label_indices = np.argmax(grid, axis=-1)
 
-                # Skip invisible (Void) cubes
-                if custom_opacity[temp_label] == 0.0:
-                    continue
+        grid_dim = grid.shape[0]
 
-                # Create a cube centered at the grid location
-                cube = pv.Cube(center=(x, y, z), x_length=1.0, y_length=1.0, z_length=1.0)
+        origin = origins[index]
 
-                color = custom_colors[temp_label]
-                color_rgb = tuple(c / 255 for c in color)
+        # Iterate through the grid
+        for x in range(grid_dim):
+            for y in range(grid_dim):
+                for z in range(grid_dim):
+                    class_idx = label_indices[x, y, z]
+                    temp_label = class_list[class_idx]
 
-                plotter.add_mesh(cube, color=color_rgb, opacity=custom_opacity[temp_label], show_edges=False)
+                    # print(f"plotting {x} {y} {z}")
+
+                    # Skip invisible (Void) cubes
+                    if custom_opacity[temp_label] == 0.0:
+                        continue
+
+                    # Create a cube centered at the grid location
+                    cube = pv.Cube(center=(x + origin[0], y + origin[1], z + origin[2]), x_length=1.0,
+                                   y_length=1.0,
+                                   z_length=1.0)
+
+                    color = custom_colors[temp_label]
+
+                    color_rgb = tuple(c / 255 for c in color)
+                    alpha = custom_opacity[temp_label]
+
+                    rgba = np.append(color_rgb, alpha)  # [R, G, B, A]
+
+                    cube.cell_data["colors"] = np.tile(rgba, (cube.n_cells, 1))
+
+                    cubes.append(cube)
+
+
+        print(f"drawing of gird {index} done")
+
+    combined = pv.MultiBlock(cubes).combine()
+
+    plotter.add_mesh(combined, scalars="colors", rgba=True, show_edges=False)
 
     # ---- Create Custom Legend ----
     legend_entries = []
@@ -153,10 +204,6 @@ def vote_voxels():
     plotter.add_legend(legend_entries, bcolor='white', face='circle', size=(0.2, 0.25), loc='lower right')
 
     plotter.show()
-
-
-
-
 
 
 def main():
