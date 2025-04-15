@@ -1,4 +1,36 @@
 import numpy as np
+import re
+import os
+from utility.data_exchange import cppIO
+
+def create_ABC_labels_from_bin_array(segment_dir, source_dir,bin_arrays, origins, vertex_type_map, vertex_to_index_map):
+
+
+
+    pass
+
+def extract_number(s):
+    match = re.search(r'(\d+)(?!.*\d)', s)
+    return int(match.group(1)) if match else float('inf')  # Put non-matching items at the end
+
+def sort_files_names_by_index(file_names):
+    return sorted(file_names, key=extract_number)
+
+def get_ABC_bin_arry_from_segment_dir(segment_dir : str,ignore_list : list[str]):
+
+    file_path = os.listdir(segment_dir)
+
+    filtered_file_path = [f for f in file_path if f not in ignore_list]
+
+    filtered_file_path = sort_files_names_by_index(filtered_file_path)
+
+    bin_arrays =  []
+
+    for file in filtered_file_path:
+        file_path = os.path.join(segment_dir, file)
+        _, _, sdf = cppIO.read_3d_array_from_binary(file_path)
+        bin_arrays.append(sdf)
+    return bin_arrays
 
 def evaluate_voxel_class_kernel(grid, target_idx, k, class_weights):
     D, _, _, C = grid.shape

@@ -8,6 +8,7 @@ from typing import List, Tuple, Dict, Optional
 from utility.data_exchange import cppIO
 import numpy as np
 import yaml
+from dl_torch.data_utility.HelperFunctionsABC import sort_files_names_by_index
 
 def parse_bin_array_data_split_by_class(root_dir: str, exclude_subfolder : list[str] = None) -> tuple[Tensor, Tensor, dict[int, str]]:
     """

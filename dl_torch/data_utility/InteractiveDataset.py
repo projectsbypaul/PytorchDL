@@ -83,6 +83,9 @@ class InteractiveDataset(Dataset):
     def set_split(self, split: float):
         self.__split_ratio = split
 
+    def set_name(self, name: str):
+        self.__name = name
+
     def save_dataset(self, file_path):
         """Save dataset to a file."""
         save_dict = {"data": self.data, "labels": self.labels, "class_dict": self.__class_dict}
@@ -106,7 +109,7 @@ class InteractiveDataset(Dataset):
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"No dataset found at {file_path}")
 
-        loaded_data = torch.load(file_path)
+        loaded_data = torch.load(file_path, weights_only=False)
         data = loaded_data["data"]
         labels = loaded_data["labels"] if loaded_data["labels"] is not None else None
         class_dict : Dict = loaded_data["class_dict"] if loaded_data["class_dict"] is not None else None
