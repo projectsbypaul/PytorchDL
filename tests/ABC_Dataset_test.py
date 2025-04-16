@@ -16,14 +16,13 @@ from dl_torch.data_utility.InteractiveDataset import InteractiveDataset
 from pathlib import Path
 
 def vote_voxels():
-    id = "00000004"
 
-    folder_path = r"C:\Local_Data\ABC\ABC_Data_ks_32_pad_4_bw_5_vs_adaptive_n2\00000004"
+    folder_path = r"C:\Local_Data\ABC\ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2\00000002"
 
     f_names = []
 
     # Pattern to extract index number from filenames like "cropped_17.bin"
-    pattern = re.compile(r"00000004_(\d+)\.bin$")
+    pattern = re.compile(r"00000002_(\d+)\.bin$")
 
     for filename in os.listdir(folder_path):
         match = pattern.match(filename)
@@ -41,7 +40,7 @@ def vote_voxels():
     vertex_type_map = cppIO.read_type_map_from_binary(folder_path + "/VertTypeMap.bin")
     vertex_to_index_map = cppIO.read_float_matrix(folder_path + "/VertToGridIndex.bin")
 
-    obj_loc = (r"C:\Local_Data\ABC\ABC_parsed_files\00000004\00000004.obj")
+    obj_loc = (r"C:\Local_Data\ABC\ABC_parsed_files\00000002\00000002.obj")
 
     vertices, _ = DataParsing.parse_obj(obj_loc)
 
@@ -129,7 +128,7 @@ def vote_voxels():
             else:
                 label[x, y, z, class_lot["Void"]] = 1
 
-        voxel_kernel = 3
+        voxel_kernel = 1
         class_weights = [1, 1, 1, 1, 1, 1, 1 / (voxel_kernel ** 3)]
         counter = np.zeros(shape=len(class_list))
 
@@ -213,8 +212,11 @@ def vote_voxels():
 
 def create_ABC_sub_Dataset():
 
-    segment_dir = r"C:\Local_Data\ABC\ABC_Data_ks_32_pad_4_bw_5_vs_adaptive_n2"
+    segment_dir = r"C:\Local_Data\ABC\ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2"
     source_dir = r"C:\Local_Data\ABC\ABC_parsed_files"
+
+    torch_dir = r"C:\Local_Data\ABC\ABC_torch\torch_data_ks_16_pad_4_bw_5_vs_adaptive_n2"
+
 
     ignored_files = ["origins.bin", "VertToGridIndex.bin", "VertTypeMap.bin"]
 
@@ -229,7 +231,7 @@ def create_ABC_sub_Dataset():
 
         full_path = os.path.join(segment_dir, path)
 
-        if len(os.listdir(full_path)) > 0:
+        if len(os.listdir(full_path)) > 1:
 
             origins = cppIO.read_float_matrix(full_path + "/origins.bin")
             vertex_type_map = cppIO.read_type_map_from_binary(full_path + "/VertTypeMap.bin")
@@ -283,13 +285,13 @@ def create_ABC_sub_Dataset():
 
 
 
-            sub_dataset.save_dataset(os.path.join(segment_dir, path, path + ".torch"))
+            sub_dataset.save_dataset(os.path.join(torch_dir, path + ".torch"))
 
 
 
 def join_ABC_sub_Datasets():
     # Define the parent folder and file extension
-    parent_folder = Path(r"C:\Local_Data\ABC\ABC_Data_ks_32_pad_4_bw_5_vs_adaptive_n2") # Replace with your folder path
+    parent_folder = Path(r"C:\Local_Data\ABC\ABC_torch\torch_data_ks_16_pad_4_bw_5_vs_adaptive_n2") # Replace with your folder path
     joined_name = "ABC_Data_ks_32_pad_4_bw_5_vs_adaptive_n2"
     file_extension = ".torch"  # Change to your desired extension
 
@@ -318,7 +320,7 @@ def join_ABC_sub_Datasets():
 
 def main():
     # vote_voxels()
-    #create_ABC_sub_Dataset()
+    # create_ABC_sub_Dataset()
     join_ABC_sub_Datasets()
 
 if __name__ == "__main__":
