@@ -2,9 +2,6 @@ import torch
 from torch.utils.data import Dataset, DataLoader, random_split
 import os
 from typing import List, Tuple, Dict, Optional
-import dl_torch.data_utility.DataParsing
-from dl_torch.data_utility.DataParsing import parse_bin_array_data_split_by_class
-import numpy as np
 
 class InteractiveDataset(Dataset):
     def __init__(self, data: torch.Tensor, labels: Optional[torch.Tensor] = None, class_dict: Optional[Dict] = None, transform=None, set_name:str = "default"):
@@ -80,6 +77,9 @@ class InteractiveDataset(Dataset):
     def get_class_dictionary(self):
         return self.__class_dict
 
+    def get_name(self):
+        return self.__name
+
     def set_split(self, split: float):
         self.__split_ratio = split
 
@@ -117,29 +117,14 @@ class InteractiveDataset(Dataset):
 
 
 def main() -> None:
+    location = r"../../data/datasets/ABC/ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2.torch"
+    dataset = InteractiveDataset.load_dataset(location)
+    # labels to channel last -> channel first
+    dataset.labels = dataset.labels.permute(0,4,1,2,3)
+    print(dataset.get_info())
+    dataset.save_dataset(location)
 
-  exclude = ["train"]
-  set_name = "ModelNet10_AE_SDF_32_bin_test"
-  root_dir = r"C:\Local_Data\DL_Datasets\ModelNet10_SDF_32"
-  save_path = f"../../data/datasets/ModelNet10/{set_name}.torch"
 
-  data, labels, class_dict = parse_bin_array_data_split_by_class(root_dir, exclude)
-
-  np_data = data.detach().numpy()
-
-  threshold = 0.09
-
-  bin_data = np.where((np_data>= (-threshold)) & (np_data <= threshold), 1,  0)
-
-  bin_data = torch.tensor(bin_data)
-
-  my_dataset = InteractiveDataset(bin_data.float(), bin_data.float(), set_name=set_name)
-
-  print(my_dataset.get_info())
-
-  my_dataset.save_dataset(save_path)
-
-  return
 
 if __name__ == "__main__":
     main()

@@ -1,14 +1,18 @@
 import torch
-from matplotlib.image import imread
-from sympy import false
 from torch import Tensor
-from torch.utils.data import Dataset, DataLoader, random_split
 import os
 from typing import List, Tuple, Dict, Optional
 from utility.data_exchange import cppIO
 import numpy as np
 import yaml
-from dl_torch.data_utility.HelperFunctionsABC import sort_files_names_by_index
+
+def clean_up_files(file_paths):
+    for f in file_paths:
+        if os.path.exists(f):
+            os.remove(f)
+            print(f"{os.path.basename(f)} deleted.")
+        else:
+            print("File does not exist.")
 
 def parse_bin_array_data_split_by_class(root_dir: str, exclude_subfolder : list[str] = None) -> tuple[Tensor, Tensor, dict[int, str]]:
     """
