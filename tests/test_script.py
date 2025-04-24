@@ -1,3 +1,5 @@
+import numpy as np
+
 from utility.data_exchange import cppIO
 import matplotlib.pyplot as plt
 import matplotlib.colors as mcolors
@@ -79,31 +81,35 @@ def read_dir_of_arrays_pyvista():
 
     sorted_paths = [path for _, path in f_names]
 
+    origins = cppIO.read_float_matrix(folder_path + "/origins.bin")
 
-    n_x = 5
-    n_y = 5
-    n_z = 2
-
-    k_size = 45
 
     plotter = pv.Plotter()
 
     count = 0
 
-    for i in range(n_x):
-        for j in range(n_y):
-            for k in range(n_z):
-              _, background, sdf = cppIO.read_3d_array_from_binary(sorted_paths[count])
+    scale_factor = 1.5
+
+    S = np.array([
+        [scale_factor, 0, 0],
+        [0, scale_factor, 0],
+        [0, 0, scale_factor]
+    ])
+
+    for index, f in enumerate(sorted_paths):
+              _, background, sdf = cppIO.read_3d_array_from_binary(sorted_paths[index])
+
+              k_size = sdf.shape[0]
 
               # Create a UniformGrid for the SDF
               grid = pv.ImageData()
               grid.dimensions = sdf.shape
               grid.spacing = (1, 1, 1)  # spacing between voxels
-              grid.origin = (k_size*i, k_size*j, k_size*k)
+              grid.origin = np.dot(np.asarray(origins[index]), S)
               grid.cell_data["sdf"] = sdf[:-1, :-1, :-1].flatten(order="F")  # Assign to cells
 
               # Threshold to get only inside voxels (sdf < 0)
-              inside_voxels = grid.threshold(value=background*0.5, scalars="sdf", invert=True)
+              inside_voxels = grid.threshold(value=1, scalars="sdf", invert=True)
 
               try:
                   plotter.add_mesh(
@@ -112,7 +118,7 @@ def read_dir_of_arrays_pyvista():
                       scalars="sdf",  # Use the sdf values for coloring
                       cmap="coolwarm",  # Choose a colormap (optional, e.g., "viridis", "plasma", "coolwarm")
                       opacity=1.0,
-                      clim=[-background, background],
+                      clim=[-1, 1],
                   )
                   print(f"{sorted_paths[count]} added")
 
@@ -122,12 +128,14 @@ def read_dir_of_arrays_pyvista():
               count+=1
 
     # Optional: set initial camera position
-    plotter.camera_position = 'yz'  # or 'xz', 'yz', etc.
+    plotter.camera_position = 'xz'  # or 'xz', 'yz', etc.
 
     # Rotate the camera around the scene
-    plotter.camera.azimuth = 45  # rotate 45 degrees around z-axis
-    plotter.camera.elevation = 45  # tilt camera
+    # plotter.camera.azimuth = 45  # rotate 45 degrees around z-axi
+    plotter.camera.elevation = -60  # tilt camera
 
+    plotter.show()
+    '''
     n_frames = 100
     plotter.open_gif(r"../data/pyvista_outputs/sdf_spin.gif")  # Optional: save animation
 
@@ -137,6 +145,8 @@ def read_dir_of_arrays_pyvista():
         plotter.write_frame()  # Save each frame to GIF
 
     plotter.close()  # Only needed if you're writing to GIF
+    
+    '''
 
 def read_test_type_maps():
     face_map_loc = r"C:\Local_Data\cropping_test\FaceTypeMap.bin"
@@ -157,7 +167,7 @@ def read_float_matrix_test():
 
 
 def main() -> None:
-   read_array_test()
+   read_dir_of_arrays_pyvista()
 
 if __name__ == "__main__":
     main()
