@@ -27,6 +27,7 @@ def test_routine():
 
     output = output.detach().view(32,32,32).cpu().numpy()
 
+
     """
     a1 = sample[plane_index, :, :]
     a2 = sample[:, plane_index, :]

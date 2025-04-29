@@ -7,6 +7,7 @@ from dl_torch.data_utility.InteractiveDataset import InteractiveDataset
 from dl_torch.data_utility.DataParsing import clean_up_files
 from dl_torch.data_utility import DataParsing
 from pathlib import Path
+from utility.data_exchange.cppIO import read_float_matrix
 
 def extract_number(s):
     match = re.search(r'(\d+)(?!.*\d)', s)
@@ -56,13 +57,51 @@ def evaluate_voxel_class_kernel(grid, target_idx, k, class_weights):
     # Return the index of the class with the highest weighted count
     return int(np.argmax(weighted_counts))
 
+def create_ABC_AE_sub_Dataset():
+
+    data_dir = r"C:\Local_Data\ABC\ABC_AE_Data_ks_16_pad_4_bw_5_vs_adaptive"
+    label_dir = r"C:\Local_Data\ABC\ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2"
+    torch_dir = r"C:\Local_Data\ABC\ABC_torch\torch_AE_data_ks_16_pad_4_bw_5_vs_adaptive"
+
+    ignored_files = ["origins.bin", "VertToGridIndex.bin", "VertTypeMap.bin"]
+
+    data_paths = os.listdir(data_dir)
+    label_path = os.listdir(label_dir)
+
+    for index, path in enumerate(data_paths):
+
+        full_data_path = os.path.join(data_dir, path)
+        full_label_path = os.path.join(label_dir, label_path[index])
+
+        n_f_data = len(os.listdir(full_data_path))
+        n_f_label = len(os.listdir(full_label_path))
+
+        if (n_f_data > 1) and (n_f_label > 1):
+
+            data_origins = np.asarray(read_float_matrix(os.path.join(data_dir, path, "origins.bin")))
+            label_origins = np.asarray(read_float_matrix(os.path.join(label_dir, path, "origins.bin")))
+
+            if data_origins.shape== label_origins.shape:
+                delta = np.sum(np.asarray(data_origins) - np.asarray(label_origins))
+                if delta == 0:
+                    data_arrays = get_ABC_bin_arry_from_segment_dir(full_data_path, ignored_files)
+                    label_arrays = get_ABC_bin_arry_from_segment_dir(full_label_path, ignored_files)
+
+                    data = torch.tensor(np.array(data_arrays))
+                    labels = torch.tensor(np.array(label_arrays))
+                    sub_dataset = InteractiveDataset(data, labels, set_name=path)
+
+                    sub_dataset.save_dataset(os.path.join(torch_dir, path + ".torch"))
+                else:
+                    print(f"skipped file {path} - origin missaligned")
+            else:
+                print(f"skipped file {path} - segment ammount not equal")
+
 def create_ABC_sub_Dataset():
 
     segment_dir = r"C:\Local_Data\ABC\ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2"
     source_dir = r"C:\Local_Data\ABC\ABC_parsed_files"
-
     torch_dir = r"C:\Local_Data\ABC\ABC_torch\torch_data_ks_16_pad_4_bw_5_vs_adaptive_n2"
-
 
     ignored_files = ["origins.bin", "VertToGridIndex.bin", "VertTypeMap.bin"]
 
@@ -135,8 +174,8 @@ def create_ABC_sub_Dataset():
 
 def join_ABC_sub_Datasets():
     # Define the parent folder and file extension
-    parent_folder = Path(r"C:\Local_Data\ABC\ABC_torch\torch_data_ks_16_pad_4_bw_5_vs_adaptive_n2") # Replace with your folder path
-    joined_name = "ABC_Data_ks_32_pad_4_bw_5_vs_adaptive_n2"
+    parent_folder = Path(r"C:\Local_Data\ABC\ABC_torch\torch_AE_data_ks_16_pad_4_bw_5_vs_adaptive") # Replace with your folder path
+    joined_name = "AE_data_ks_16_pad_4_bw_5_vs_adaptive"
     file_extension = ".torch"  # Change to your desired extension
 
     # Get all matching file paths
@@ -144,30 +183,34 @@ def join_ABC_sub_Datasets():
 
     data_set_joined = InteractiveDataset.load_dataset(file_paths[0])
 
-    clean_up_files([file_paths[0]])
+    # clean_up_files([file_paths[0]])
 
     data_set_joined.set_name("joined_set")
 
     for index, path in enumerate(file_paths):
         if index > 0:
-            data_set = InteractiveDataset.load_dataset(path)
-            data_set_joined.data = torch.vstack([data_set_joined.data, data_set.data])
-            data_set_joined.labels = torch.vstack([data_set_joined.labels, data_set.labels])
-            print(f"merged {os.path.basename(path)} into {data_set_joined.get_name()}")
+            try:
+                data_set = InteractiveDataset.load_dataset(path)
+                data_set_joined.data = torch.vstack([data_set_joined.data, data_set.data])
+                data_set_joined.labels = torch.vstack([data_set_joined.labels, data_set.labels])
+                print(f"merged {os.path.basename(path)} into {data_set_joined.get_name()}")
+            except:
+                print(f"merge failed on subset {index}")
 
-    data_set_joined.labels = data_set_joined.labels.permute(0, 4, 1, 2, 3)
+    # data_set_joined.labels = data_set_joined.labels.permute(0, 4, 1, 2, 3)
+    data_set_joined.labels = data_set_joined.labels.unsqueeze(1)
+    data_set_joined.save_dataset(r"../../data/datasets/ABC/AE_data_ks_16_pad_4_bw_5_vs_adaptive.torch")
 
-    data_set_joined.save_dataset(r"../data/datasets/ABC/ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2.torch")
+    load_test = InteractiveDataset.load_dataset(r"../../data/datasets/ABC/AE_data_ks_16_pad_4_bw_5_vs_adaptive.torch")
 
-    load_test = InteractiveDataset.load_dataset(r"../data/datasets/ABC/ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2.torch")
-
-    #clean_up_files(file_paths)
+    clean_up_files(file_paths)
 
     print(load_test.get_info())
 
 
 def main():
-    join_ABC_sub_Datasets()
+    create_ABC_AE_sub_Dataset()
+    # join_ABC_sub_Datasets()
 
 if __name__ == "__main__":
     main()

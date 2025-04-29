@@ -28,7 +28,7 @@ def read_array_test():
 def read_array_pyvista():
 
     # Load the array
-    voxel_size, background, sdf = cppIO.read_3d_array_from_binary(r"C:\Local_Data\cropping_test\cropped_32")
+    voxel_size, background, sdf = cppIO.read_3d_array_from_binary(r"C:\Local_Data\ABC\ABC_AE_Data_ks_16_pad_4_bw_5_vs_adaptive\00000004")
 
     print(f"Voxel Size: {voxel_size}")
     print(f"Background: {background}")
@@ -62,12 +62,12 @@ def read_array_pyvista():
 
 def read_dir_of_arrays_pyvista():
 
-    folder_path = r"C:\Local_Data\cropping_test"
+    folder_path = r"C:\Local_Data\ABC\ABC_AE_Data_ks_16_pad_4_bw_5_vs_adaptive\00000008"
 
     f_names = []
 
     # Pattern to extract index number from filenames like "cropped_17.bin"
-    pattern = re.compile(r"cropped_(\d+)\.bin$")
+    pattern = re.compile(r"00000008_(\d+)\.bin$")
 
     for filename in os.listdir(folder_path):
         match = pattern.match(filename)
@@ -109,7 +109,7 @@ def read_dir_of_arrays_pyvista():
               grid.cell_data["sdf"] = sdf[:-1, :-1, :-1].flatten(order="F")  # Assign to cells
 
               # Threshold to get only inside voxels (sdf < 0)
-              inside_voxels = grid.threshold(value=1, scalars="sdf", invert=True)
+              inside_voxels = grid.threshold(value = 1, scalars="sdf", invert=True)
 
               try:
                   plotter.add_mesh(
@@ -159,15 +159,19 @@ def read_test_type_maps():
 
 
 def read_float_matrix_test():
-    origin_matrix_loc = r"C:\Local_Data\cropping_test\origins.bin"
-    origin_matrix = cppIO.load_float_matrix(origin_matrix_loc)
+    origin_matrix_loc = r"C:\Local_Data\ABC\ABC_AE_Data_ks_16_pad_4_bw_5_vs_adaptive\00000004\origins.bin"
+    matrix_0 = cppIO.read_float_matrix(origin_matrix_loc)
+
+    origin_matrix_loc = r"C:\Local_Data\ABC\ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2\00000004\origins.bin"
+    matrix_1 = cppIO.read_float_matrix(origin_matrix_loc)
 
     print()
 
 
 
 def main() -> None:
-   read_dir_of_arrays_pyvista()
+    read_dir_of_arrays_pyvista()
+
 
 if __name__ == "__main__":
     main()
