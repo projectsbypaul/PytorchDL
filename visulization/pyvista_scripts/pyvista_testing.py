@@ -1,90 +1,168 @@
 import pyvista as pv
 import numpy as np
 from dl_torch.data_utility import DataParsing
+from utility.data_exchange import cppIO
 import random
 from matplotlib.colors import ListedColormap
 
 
-def test_pyvista():
-    obj_loc = (r"C:\Local_Data\ABC\obj\abc_meta_files"
-               r"\abc_0000_obj_v00\00000002\00000002_1ffb81a71e5b402e966b9341_trimesh_001.obj")
+def test_draw_from_yml():
+    id = "00000002"
 
-    yml_loc = (r"C:\Local_Data\ABC\feat\abc_meta_files"
-               r"\abc_0000_feat_v00\00000002\00000002_1ffb81a71e5b402e966b9341_features_001.yml")
+    obj_loc = f"C:/Local_Data/ABC/ABC_parsed_files/{id}/{id}.obj"
+    yml_loc = f"C:/Local_Data/ABC/ABC_parsed_files/{id}/{id}.yml"
 
     vertices, faces = DataParsing.parse_obj(obj_loc)
-
     data = DataParsing.parse_yaml(yml_loc)
-
     surface_metadata = data["surfaces"]
 
+    # Create face type list
     face_type_list = [""] * len(faces)
-
     for surface in surface_metadata:
-
         faces_of_surf = surface["face_indices"]
         surf_type = surface["type"]
-
         for face_index in faces_of_surf:
             face_type_list[face_index] = surf_type
 
-    # Create mapping for unique types
-    unique_types = sorted(set(face_type_list))
-    type_to_id = {typ: i for i, typ in enumerate(unique_types)}
-    face_type_ids = np.array([type_to_id[t] for t in face_type_list])
+    # Define custom colors (RGB 0-255) and opacity
+    custom_colors = {
+        'Cone': (0, 0, 255),  # blue
+        'Cylinder': (255, 0, 0),  # red
+        'Edge': (255, 255, 0),  # yellow
+        'Plane': (255, 192, 203),  # pink
+        'Sphere': (128, 0, 0),  # dark red
+        'Torus': (0, 255, 255),  # cyan
+        'BSpline': (100, 0, 100)  # magenta
+    }
+    custom_opacity = {
+        'Cone': 1.0,
+        'Cylinder': 1.0,
+        'Edge': 1.0,
+        'Plane': 1.0,
+        'Sphere': 1.0,
+        'Torus': 1.0,
+        'BSpline': 1.0,
+    }
 
-    # Prepare mesh
+    # Map face types to RGBA colors
+    face_colors = []
+    for face_type in face_type_list:
+        rgb = custom_colors.get(face_type, (128, 128, 128))  # fallback grey
+        opacity = custom_opacity.get(face_type, 1.0)         # fallback 1.0
+        rgba = [c / 255 for c in rgb] + [opacity]
+        face_colors.append(rgba)
+    face_colors = np.array(face_colors)
+
+    # Prepare the mesh
     pvy_vertices = np.array(vertices)
     pvy_faces = np.hstack([[3] + list(f) for f in faces])
     mesh = pv.PolyData(pvy_vertices, pvy_faces)
-    mesh.cell_data['surface_type'] = face_type_ids
 
-    c1 = np.array([12 / 256, 238 / 256, 246 / 256, 1.0])
-    c2 = np.array([148 / 256, 0 / 256, 211 / 256, 1.0])
-    c3 = np.array([0 / 256, 128 / 256, 0 / 256, 1.0])
-    c4 = np.array([255 / 256, 247 / 256, 0 / 256, 1.0])
-    c5 = np.array([1.0, 0.0, 0.0, 1.0])
+    # Add face colors directly
+    mesh.cell_data['colors'] = face_colors
 
-    rgba_colors = [c1, c2, c3, c4, c5]
-
-    colormap = ListedColormap(rgba_colors)
-
-    # Manually add colored squares using rectangles
+    # Plot
     plotter = pv.Plotter()
-
-    actor = plotter.add_mesh(
+    plotter.add_mesh(
         mesh,
-        scalars='surface_type',
-        cmap=colormap,
+        scalars='colors',
+        rgba=True,
         show_edges=True,
         show_scalar_bar=False,
     )
 
-    # Overwrite legend with black text and custom colored squares
+    # ------ Legend creation ------
+    legend_entries = []
+    for label, rgb in custom_colors.items():
+        color_normalized = tuple(c / 255.0 for c in rgb)
+        legend_entries.append([label, color_normalized])
 
-    """
-       plotter.add_legend(
-        labels=[
-            [typ, tuple(color[:3])] for typ, color in zip(unique_types, rgba_colors)
-        ],
-        bcolor='white',
-        face='rectangle',  # shows colored box
+    plotter.add_legend(
+        legend_entries,
+        bcolor=None,
         border=True,
-        size=(0.2, 0.3)
+        size=(0.25, 0.3)
     )
-
-    """
 
     plotter.show()
 
 
+def test_draw_from_bin():
 
+    obj_loc = r"C:\Local_Data\ABC\ABC_parsed_files\00000066\00000066.obj"
+    face_type_map_loc = r"C:\Local_Data\ABC\ABC_Testing\FaceTypeMap.bin"
 
-    print()
+    type_counts = cppIO.read_type_counts_from_binary(r"C:\Local_Data\ABC\ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2\00000002\TypeCounts.bin")
+    print(type_counts)
+
+    face_type_map = cppIO.read_type_map_from_binary(face_type_map_loc)
+    face_type_map = [inner[0] for inner in face_type_map]  # flatten
+
+    vertices, faces = DataParsing.parse_obj(obj_loc)
+
+    # Define custom colors (RGB 0-255) and opacity
+    custom_colors = {
+        'Cone': (0, 0, 255),  # blue
+        'Cylinder': (255, 0, 0),  # red
+        'Edge': (255, 255, 0),  # yellow
+        'Plane': (255, 192, 203),  # pink
+        'Sphere': (128, 0, 0),  # dark red
+        'Torus': (0, 255, 255),  # cyan
+        'BSpline': (100, 0, 100) # magenta
+    }
+    custom_opacity = {
+        'Cone': 1.0,
+        'Cylinder': 1.0,
+        'Edge': 1.0,
+        'Plane': 1.0,
+        'Sphere': 1.0,
+        'Torus': 1.0,
+        'BSpline': 1.0,
+    }
+
+    # Map face types to RGBA colors
+    face_colors = []
+    for face_type in face_type_map:
+        rgb = custom_colors.get(face_type, (128, 128, 128))  # fallback grey
+        opacity = custom_opacity.get(face_type, 1.0)  # fallback 1.0
+        rgba = [c / 255 for c in rgb] + [opacity]
+        face_colors.append(rgba)
+
+    face_colors = np.array(face_colors)
+
+    # Prepare the mesh
+    pvy_vertices = np.array(vertices)
+    pvy_faces = np.hstack([[3] + list(f) for f in faces])
+    mesh = pv.PolyData(pvy_vertices, pvy_faces)
+
+    # Add face colors directly
+    mesh.cell_data['colors'] = face_colors
+
+    # Plot
+    plotter = pv.Plotter()
+
+    plotter.add_mesh(
+        mesh,
+        scalars='colors',
+        rgba=True,
+        show_edges=True,
+        show_scalar_bar=False,
+    )
+
+    # ------ Legend creation ------
+    # Add a legend
+    legend_entries = []
+    for label, rgb in custom_colors.items():
+        color_normalized = tuple(c / 255.0 for c in rgb)
+        legend_entries.append([label, color_normalized])
+
+    plotter.add_legend(legend_entries, bcolor=None, border=True, size=(0.25, 0.3))
+    plotter.show()
 
 
 def main():
-    test_pyvista()
+    # test_draw_from_yml()
+    test_draw_from_bin()
 
 if __name__ =="__main__":
     main()

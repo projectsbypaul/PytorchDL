@@ -52,3 +52,17 @@ def read_float_matrix(filename):
             matrix.append(row)
 
     return matrix
+
+def read_type_counts_from_binary(filename):
+    surface_type_counts = {}
+
+    with open(filename, "rb") as f:
+        map_size = int.from_bytes(f.read(8), byteorder='little')
+
+        for _ in range(map_size):
+            key_size = int.from_bytes(f.read(8), byteorder='little')
+            key = f.read(key_size).decode('utf-8')
+            value = int.from_bytes(f.read(4), byteorder='little', signed=True)
+            surface_type_counts[key] = value
+
+    return surface_type_counts
