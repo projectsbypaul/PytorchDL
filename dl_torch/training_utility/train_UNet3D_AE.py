@@ -178,7 +178,7 @@ def job_1():
     dataset_loc = r"../../data/datasets/ABC/AE_data_ks_16_pad_4_bw_5_vs_adaptive.torch"
     model_weights_loc = "../../data/model_weights/{model_name}/{run_name}_save_{epoch}.pth"
 
-    epochs = 1000
+    epochs = 500
     backup_epochs = 100
     learning_rates = [10 ** -5]
     decay_order = [10 ** -1]
@@ -211,10 +211,10 @@ def job_2():
     dataset_loc = r"../../data/datasets/ABC/AE_data_ks_16_pad_4_bw_5_vs_adaptive.torch"
     model_weights_loc = "../../data/model_weights/{model_name}/{run_name}_save_{epoch}.pth"
 
-    epochs = 1000
+    epochs = 500
     backup_epochs = 100
-    learning_rates = [10 ** -5]
-    decay_order = [10 ** 0]
+    learning_rates = [10 ** -6]
+    decay_order = [10 ** -1]
     batch_sizes = [4]
 
     # Setup dataset for training
@@ -244,7 +244,7 @@ def job_3():
     dataset_loc = r"../../data/datasets/ABC/AE_data_ks_16_pad_4_bw_5_vs_adaptive.torch"
     model_weights_loc = "../../data/model_weights/{model_name}/{run_name}_save_{epoch}.pth"
 
-    epochs = 1000
+    epochs = 500
     backup_epochs = 100
     learning_rates = [10 ** -6]
     decay_order = [10 ** 0]
