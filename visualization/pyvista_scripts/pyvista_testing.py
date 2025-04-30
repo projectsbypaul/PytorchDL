@@ -24,16 +24,21 @@ def test_draw_from_yml():
         for face_index in faces_of_surf:
             face_type_list[face_index] = surf_type
 
-    # Define custom colors (RGB 0-255) and opacity
+    # Define RGB (0–255) for all classes
     custom_colors = {
         'Cone': (0, 0, 255),  # blue
         'Cylinder': (255, 0, 0),  # red
-        'Edge': (255, 255, 0),  # yellow
-        'Plane': (255, 192, 203),  # pink
+        'Edge': (255, 255, 0),  # yellow (can remove if "Edge" is not used anymore)
+        'Plane': (255, 20, 147),  # DeepPink
         'Sphere': (128, 0, 0),  # dark red
         'Torus': (0, 255, 255),  # cyan
-        'BSpline': (100, 0, 100)  # magenta
+        'Revolution': (0, 128, 0),  # dark green
+        'Extrusion': (255, 165, 0),  # orange
+        'Other': (128, 128, 128),  # gray
+        'BSpline': (138, 43, 226),  # blue violet
     }
+
+    # Updated opacity values
     custom_opacity = {
         'Cone': 1.0,
         'Cylinder': 1.0,
@@ -41,6 +46,9 @@ def test_draw_from_yml():
         'Plane': 1.0,
         'Sphere': 1.0,
         'Torus': 1.0,
+        'Revolution': 1.0,
+        'Extrusion': 1.0,
+        'Other': 1.0,
         'BSpline': 1.0,
     }
 
@@ -88,28 +96,33 @@ def test_draw_from_yml():
 
 
 def test_draw_from_bin():
+    id = "00000002"
 
-    obj_loc = r"C:\Local_Data\ABC\ABC_parsed_files\00000066\00000066.obj"
-    face_type_map_loc = r"C:\Local_Data\ABC\ABC_Testing\FaceTypeMap.bin"
+    obj_loc = f"C:/Local_Data/ABC/ABC_parsed_files/{id}/{id}.obj"
 
-    type_counts = cppIO.read_type_counts_from_binary(r"C:\Local_Data\ABC\ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2\00000002\TypeCounts.bin")
-    print(type_counts)
+    face_type_map_loc = (f"C:\\Local_Data\\ABC\\ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2"
+                         f"\\{id}\\FaceTypeMap.bin")
 
     face_type_map = cppIO.read_type_map_from_binary(face_type_map_loc)
     face_type_map = [inner[0] for inner in face_type_map]  # flatten
 
     vertices, faces = DataParsing.parse_obj(obj_loc)
 
-    # Define custom colors (RGB 0-255) and opacity
+    # Define RGB (0–255) for all classes
     custom_colors = {
         'Cone': (0, 0, 255),  # blue
         'Cylinder': (255, 0, 0),  # red
-        'Edge': (255, 255, 0),  # yellow
-        'Plane': (255, 192, 203),  # pink
+        'Edge': (255, 255, 0),  # yellow (can remove if "Edge" is not used anymore)
+        'Plane': (255, 20, 147),  # DeepPink
         'Sphere': (128, 0, 0),  # dark red
         'Torus': (0, 255, 255),  # cyan
-        'BSpline': (100, 0, 100) # magenta
+        'Revolution': (0, 128, 0),  # dark green
+        'Extrusion': (255, 165, 0),  # orange
+        'Other': (128, 128, 128),  # gray
+        'BSpline': (138, 43, 226),  # blue violet
     }
+
+    # Updated opacity values
     custom_opacity = {
         'Cone': 1.0,
         'Cylinder': 1.0,
@@ -117,6 +130,9 @@ def test_draw_from_bin():
         'Plane': 1.0,
         'Sphere': 1.0,
         'Torus': 1.0,
+        'Revolution': 1.0,
+        'Extrusion': 1.0,
+        'Other': 1.0,
         'BSpline': 1.0,
     }
 
@@ -150,18 +166,23 @@ def test_draw_from_bin():
     )
 
     # ------ Legend creation ------
-    # Add a legend
     legend_entries = []
     for label, rgb in custom_colors.items():
         color_normalized = tuple(c / 255.0 for c in rgb)
         legend_entries.append([label, color_normalized])
 
-    plotter.add_legend(legend_entries, bcolor=None, border=True, size=(0.25, 0.3))
+    plotter.add_legend(
+        legend_entries,
+        bcolor=None,
+        border=True,
+        size=(0.25, 0.3)
+    )
+
     plotter.show()
 
 
 def main():
-    # test_draw_from_yml()
+    test_draw_from_yml()
     test_draw_from_bin()
 
 if __name__ =="__main__":

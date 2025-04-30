@@ -42,14 +42,19 @@ def colored_mesh_pyvista():
 
     # Define RGB (0–255) for all classes
     custom_colors = {
-        'Cone': (0, 0, 255),      # blue
+        'Cone': (0, 0, 255),  # blue
         'Cylinder': (255, 0, 0),  # red
-        'Edge': (255, 255, 0),    # yellow
-        'Plane': (255, 192, 203), # pink
-        'Sphere': (128, 0, 0),    # dark red
-        'Torus': (0, 255, 255),   # cyan
+        'Edge': (255, 255, 0),  # yellow (can remove if "Edge" is not used anymore)
+        'Plane': (255, 20, 147),  # DeepPink
+        'Sphere': (128, 0, 0),  # dark red
+        'Torus': (0, 255, 255),  # cyan
+        'Revolution': (0, 128, 0),  # dark green
+        'Extrusion': (255, 165, 0),  # orange
+        'Other': (128, 128, 128),  # gray
+        'BSpline': (138, 43, 226),  # blue violet
     }
 
+    # Updated opacity values
     custom_opacity = {
         'Cone': 1.0,
         'Cylinder': 1.0,
@@ -57,6 +62,10 @@ def colored_mesh_pyvista():
         'Plane': 1.0,
         'Sphere': 1.0,
         'Torus': 1.0,
+        'Revolution': 1.0,
+        'Extrusion': 1.0,
+        'Other': 1.0,
+        'BSpline': 1.0,
     }
 
     ### --- NOW: Visualize with PyVista --- ###

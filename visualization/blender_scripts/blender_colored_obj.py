@@ -73,7 +73,8 @@ for obj in bpy.data.objects:
     bpy.data.objects.remove(obj, do_unlink=True)
 
 # Load mesh
-obj_path = r"C:\Local_Data\ABC\ABC_parsed_files\00000002\00000002.obj"
+id = "00000377"
+obj_path = f"C:/Local_Data/ABC/ABC_parsed_files/{id}/{id}.obj"
 obj = load_obj_simple(obj_path)
 
 # Load face colors
