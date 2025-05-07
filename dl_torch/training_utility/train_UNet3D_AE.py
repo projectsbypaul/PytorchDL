@@ -175,7 +175,7 @@ def job_1():
     # Model Setup
     model_constructor = partial(AutoEncoder3D) # pass handle for constructor
     model_name = "Autoencoder_UNEt"
-    dataset_loc = r"../../data/datasets/ABC/AE_data_ks_16_pad_4_bw_5_vs_adaptive.torch"
+    dataset_loc = r"../../data/datasets/ABC/AE_ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2.torch"
     model_weights_loc = "../../data/model_weights/{model_name}/{run_name}_save_{epoch}.pth"
 
     epochs = 500
@@ -208,7 +208,7 @@ def job_2():
     # Model Setup
     model_constructor = partial(AutoEncoder3D)  # pass handle for constructor
     model_name = "Autoencoder_UNEt"
-    dataset_loc = r"../../data/datasets/ABC/AE_data_ks_16_pad_4_bw_5_vs_adaptive.torch"
+    dataset_loc = r"../../data/datasets/ABC/AE_ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2.torch"
     model_weights_loc = "../../data/model_weights/{model_name}/{run_name}_save_{epoch}.pth"
 
     epochs = 500
@@ -241,7 +241,7 @@ def job_3():
     # Model Setup
     model_constructor = partial(AutoEncoder3D)  # pass handle for constructor
     model_name = "Autoencoder_UNEt"
-    dataset_loc = r"../../data/datasets/ABC/AE_data_ks_16_pad_4_bw_5_vs_adaptive.torch"
+    dataset_loc = r"../../data/datasets/ABC/AE_ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2.torch"
     model_weights_loc = "../../data/model_weights/{model_name}/{run_name}_save_{epoch}.pth"
 
     epochs = 500

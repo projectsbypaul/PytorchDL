@@ -142,9 +142,9 @@ def training_routine(model_constructor,
                                     model_weights_loc
                                     )
 
-                run_name = f"{model_name}_lr[{l}]cdod[{dc_od}]bs{bs}"
+                run_name = f"{model_name}_lr[{l}]_lrdc[{dc_od}]bs{bs}"
 
-                model_save_name = model_weights_loc.format(model_name=model_name, run_name=run_name, epoch=epoch)
+                model_save_name = model_weights_loc.format(model_name=model_name, run_name=run_name, epoch="last")
 
                 # Save model
                 torch.save(model.state_dict(), model_save_name)
@@ -161,8 +161,8 @@ def log_cuda_status():
     print(f"Max Allocated Memory: {torch.cuda.max_memory_allocated() / 1024 ** 2:.2f} MB")
 
 def job_0():
-    model_constructor = partial(UNet3D_16EL, in_channels=1, out_channels=7)
-    model_name = "UNet3D_SDF_16EL"
+    model_constructor = partial(UNet3D_16EL, in_channels=1, out_channels=10)
+    model_name = "UNet3D_SDF_16EL_n_class_10"
     dataset_loc = r"../../data/datasets/ABC/ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2.torch"
     model_weights_loc = "../../data/model_weights/{model_name}/{run_name}_save_{epoch}.pth"
 

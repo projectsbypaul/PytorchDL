@@ -61,41 +61,57 @@ def create_ABC_AE_sub_Dataset():
 
     data_dir = r"C:\Local_Data\ABC\ABC_AE_Data_ks_16_pad_4_bw_5_vs_adaptive"
     label_dir = r"C:\Local_Data\ABC\ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2"
-    torch_dir = r"C:\Local_Data\ABC\ABC_torch\torch_AE_data_ks_16_pad_4_bw_5_vs_adaptive"
+    torch_dir = r"C:\Local_Data\ABC\ABC_torch\AE_ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2"
 
-    ignored_files = ["origins.bin", "VertToGridIndex.bin", "VertTypeMap.bin"]
+    ignored_files = ["origins.bin", "VertToGridIndex.bin", "VertTypeMap.bin", "TypeCounts.bin", "FaceTypeMap.bin",
+                     "FaceToGridIndex.bin"]
+
+    n_min_files_data = 3
+    n_min_files_label = 5
 
     data_paths = os.listdir(data_dir)
     label_path = os.listdir(label_dir)
 
+    if not(os.path.exists(torch_dir)):
+        os.makedirs(torch_dir)
+
     for index, path in enumerate(data_paths):
 
         full_data_path = os.path.join(data_dir, path)
-        full_label_path = os.path.join(label_dir, label_path[index])
+
+        dir_name = os.path.basename(full_data_path)
+
+        full_label_path = os.path.join(label_dir, dir_name)
+
+        if not (os.path.exists(full_label_path)):
+            print(f"skipped file {path} - label dir does not exist")
+            continue
 
         n_f_data = len(os.listdir(full_data_path))
-        n_f_label = len(os.listdir(full_label_path))
+        n_f_label =  len(os.listdir(full_label_path))
 
-        if (n_f_data > 1) and (n_f_label > 1):
+        if (n_f_data < n_min_files_data) or (n_f_label < n_min_files_label):
+            print(f"skipped file {path} - dir was not correctly pre processed")
+            continue
 
-            data_origins = np.asarray(read_float_matrix(os.path.join(data_dir, path, "origins.bin")))
-            label_origins = np.asarray(read_float_matrix(os.path.join(label_dir, path, "origins.bin")))
+        data_origins = np.asarray(read_float_matrix(os.path.join(data_dir, path, "origins.bin")))
+        label_origins = np.asarray(read_float_matrix(os.path.join(label_dir, path, "origins.bin")))
 
-            if data_origins.shape== label_origins.shape:
-                delta = np.sum(np.asarray(data_origins) - np.asarray(label_origins))
-                if delta == 0:
-                    data_arrays = get_ABC_bin_arry_from_segment_dir(full_data_path, ignored_files)
-                    label_arrays = get_ABC_bin_arry_from_segment_dir(full_label_path, ignored_files)
+        if data_origins.shape == label_origins.shape:
+            delta = np.sum(np.asarray(data_origins) - np.asarray(label_origins))
+            if delta == 0:
+                data_arrays = get_ABC_bin_arry_from_segment_dir(full_data_path, ignored_files)
+                label_arrays = get_ABC_bin_arry_from_segment_dir(full_label_path, ignored_files)
 
-                    data = torch.tensor(np.array(data_arrays))
-                    labels = torch.tensor(np.array(label_arrays))
-                    sub_dataset = InteractiveDataset(data, labels, set_name=path)
+                data = torch.tensor(np.array(data_arrays))
+                labels = torch.tensor(np.array(label_arrays))
+                sub_dataset = InteractiveDataset(data, labels, set_name=path)
 
-                    sub_dataset.save_dataset(os.path.join(torch_dir, path + ".torch"))
-                else:
-                    print(f"skipped file {path} - origin missaligned")
+                sub_dataset.save_dataset(os.path.join(torch_dir, path + ".torch"))
             else:
-                print(f"skipped file {path} - segment ammount not equal")
+                print(f"skipped file {path} - origin missaligned")
+        else:
+            print(f"skipped file {path} - segment ammount not equal")
 
 def create_ABC_sub_Dataset():
 
@@ -103,38 +119,45 @@ def create_ABC_sub_Dataset():
     source_dir = r"C:\Local_Data\ABC\ABC_parsed_files"
     torch_dir = r"C:\Local_Data\ABC\ABC_torch\torch_data_ks_16_pad_4_bw_5_vs_adaptive_n2"
 
-    ignored_files = ["origins.bin", "VertToGridIndex.bin", "VertTypeMap.bin"]
+    ignored_files = ["origins.bin", "VertToGridIndex.bin", "VertTypeMap.bin", "TypeCounts.bin", "FaceTypeMap.bin", "FaceToGridIndex.bin"]
+    n_min_files = 5
 
     # Set up dictionary
-    class_list = np.array(["Cone", "Cylinder", "Edge", "Plane", "Sphere", "Torus", "Void"])
+    class_list = np.array(['Cone', 'Revolution', 'Sphere', 'Plane', 'Extrusion', 'Other', 'Cylinder', 'Torus', 'BSpline', 'Void'])
+    class_list = np.sort(class_list)
     class_indices = np.arange(len(class_list))
     class_lot = dict(zip(class_list, class_indices))
+    index_lot = dict(zip(class_indices, class_list, ))
 
     segment_paths = os.listdir(segment_dir)
+
+    if not(os.path.exists(torch_dir)):
+        os.makedirs(torch_dir)
 
     for path in segment_paths:
 
         full_path = os.path.join(segment_dir, path)
 
-        if len(os.listdir(full_path)) > 1:
+        if len(os.listdir(full_path)) > n_min_files:
 
             origins = cppIO.read_float_matrix(full_path + "/origins.bin")
-            vertex_type_map = cppIO.read_type_map_from_binary(full_path + "/VertTypeMap.bin")
-            vertex_to_index_map = cppIO.read_float_matrix(full_path + "/VertToGridIndex.bin")
+            face_type_map = cppIO.read_type_map_from_binary(full_path + "/FaceTypeMap.bin")
+            face_to_index_map = cppIO.read_float_matrix(full_path + "/FaceToGridIndex.bin")
 
             bin_arrays = get_ABC_bin_arry_from_segment_dir(full_path, ignored_files)
 
             obj_path = os.path.join(source_dir, path ,path + ".obj")
 
-            vertices, _ = DataParsing.parse_obj(obj_path)
-
-            for index, v_types in enumerate(vertex_type_map):
-                if len(v_types) > 1:
-                    vertex_type_map[index] = ["Edge"]
+            _ , faces = DataParsing.parse_obj(obj_path)
 
             labels = []
 
             for grid_index, grid in enumerate(bin_arrays):
+
+                df_voxel_count = dict()
+
+                for index, surf_type in enumerate(class_list):
+                    df_voxel_count.update({surf_type: 0})
 
                 grid_dim = grid.shape[0]
 
@@ -146,20 +169,35 @@ def create_ABC_sub_Dataset():
 
                 write_count = 0
 
-                for vert_index, vert in enumerate(vertex_to_index_map):
-                    if origin[0] <= vert[0] <= top[0] and origin[1] <= vert[1] <= top[1] and origin[2] <= vert[2] <= \
-                            top[2]:
-                        grid_index = vert - origin
-                        try:
-                            type_string = vertex_type_map[vert_index]
-                            one_hot_index = class_lot[type_string[0]]
-                            label[int(grid_index[0]), int(grid_index[1]), int(grid_index[2]), one_hot_index] += 1
-                            write_count += 1
-                        except:
-                            #print(f"Vertex {vert_index} is not mappable")
-                             pass
+                for face_index, face_center in enumerate(face_to_index_map):
 
-                # print(f"wrote {write_count} labels")
+                    if origin[0] <= face_center[0] <= top[0] and origin[1] <= face_center[1] <= top[1] and origin[2] <= \
+                            face_center[2] <= \
+                            top[2]:
+                        grid_index = face_center - origin
+
+                        type_string = face_type_map[face_index]
+                        one_hot_index = class_lot[type_string[0]]
+                        label[int(grid_index[0]), int(grid_index[1]), int(grid_index[2]), one_hot_index] += 1
+                        write_count += 1
+
+                # print(f"wrote {write_count} labels for part {path}")
+
+                for i, j, k in np.ndindex(label.shape[0], label.shape[1], label.shape[2]):
+                    voxel = label[i, j, k, :]
+
+                    if np.sum(voxel) > 0:
+                        max_index = np.argmax(voxel)
+                        label[i, j, k, :] = np.zeros_like(voxel)
+                        label[i, j, k, max_index] = 1
+                        df_voxel_count[index_lot[max_index]] += 1
+                    else:
+                        label[i, j, k, class_lot["Void"]] = 1
+                        df_voxel_count['Void'] += 1
+
+                #print(f"Writer Counter part {path} grid {grid_index}")
+                # print(df_voxel_count.keys())
+                # print(df_voxel_count.values())
 
                 labels.append(label)
 
@@ -174,8 +212,8 @@ def create_ABC_sub_Dataset():
 
 def join_ABC_sub_Datasets():
     # Define the parent folder and file extension
-    parent_folder = Path(r"C:\Local_Data\ABC\ABC_torch\torch_AE_data_ks_16_pad_4_bw_5_vs_adaptive") # Replace with your folder path
-    joined_name = "AE_data_ks_16_pad_4_bw_5_vs_adaptive"
+    parent_folder = Path(r"C:\Local_Data\ABC\ABC_torch\AE_ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2") # Replace with your folder path
+    joined_name = "AE_ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2"
     file_extension = ".torch"  # Change to your desired extension
 
     # Get all matching file paths
@@ -197,13 +235,13 @@ def join_ABC_sub_Datasets():
             except:
                 print(f"merge failed on subset {index}")
 
-    # data_set_joined.labels = data_set_joined.labels.permute(0, 4, 1, 2, 3)
+    #data_set_joined.labels = data_set_joined.labels.permute(0, 4, 1, 2, 3)
     data_set_joined.labels = data_set_joined.labels.unsqueeze(1)
-    data_set_joined.save_dataset(r"../../data/datasets/ABC/AE_data_ks_16_pad_4_bw_5_vs_adaptive.torch")
+    data_set_joined.save_dataset(f"../../data/datasets/ABC/{joined_name}.torch")
 
-    load_test = InteractiveDataset.load_dataset(r"../../data/datasets/ABC/AE_data_ks_16_pad_4_bw_5_vs_adaptive.torch")
+    load_test = InteractiveDataset.load_dataset(f"../../data/datasets/ABC/{joined_name}.torch")
 
-    clean_up_files(file_paths)
+    # clean_up_files(file_paths)
 
     print(load_test.get_info())
 

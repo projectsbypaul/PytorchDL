@@ -4,7 +4,7 @@ from dl_torch.data_utility import DataParsing
 import pickle
 
 def FaceTypeMap_blender_export():
-    id = "00000377"
+    id = "00000002"
 
     ftm_loc = f"C:\\Local_Data\\ABC\\ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2\\{id}\\FaceTypeMap.bin"
     obj_loc = f"C:\\Local_Data\\ABC\\ABC_parsed_files\\{id}\\{id}.obj"

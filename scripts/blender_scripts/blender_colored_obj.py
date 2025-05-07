@@ -1,6 +1,33 @@
 import bpy
 import random
+from pathlib import Path
 import pickle
+
+def create_legend(color_label_map, start_location=(0, 0, 0), spacing=20):
+    """
+    Create a simple legend using colored planes and text.
+    
+    color_label_map: dict mapping label names or indices to RGBA tuples
+    start_location: (x, y, z) start point
+    spacing: vertical spacing between legend items
+    """
+    x, y, z = start_location
+
+    for i, (label, color) in enumerate(color_label_map.items()):
+        # Create plane for color
+        bpy.ops.mesh.primitive_plane_add(size=10, location=(x, y - i * spacing + 2.5, z ))
+        plane = bpy.context.object
+        mat = bpy.data.materials.new(name=f"LegendColor_{label}")
+        mat.use_nodes = True
+        bsdf = mat.node_tree.nodes.get("Principled BSDF")
+        bsdf.inputs['Base Color'].default_value = color
+        plane.data.materials.append(mat)
+
+        # Create text
+        bpy.ops.object.text_add(location=(x + 10, y - i * spacing, z ))
+        text_obj = bpy.context.object
+        text_obj.data.body = str(label)
+        text_obj.data.size = 10
 
 def load_obj_simple(filepath):
     verts = []
@@ -73,14 +100,22 @@ for obj in bpy.data.objects:
     bpy.data.objects.remove(obj, do_unlink=True)
 
 # Load mesh
-id = "00000377"
+id = "00000002"
 obj_path = f"C:/Local_Data/ABC/ABC_parsed_files/{id}/{id}.obj"
 obj = load_obj_simple(obj_path)
 
 # Load face colors
-with open(r"C:\src\repos\PytorchDL\data\blender_export\color_map.pkl", "rb") as f:
+
+# color_map_path = r"C:\src\repos\PytorchDL\data\blender_export\color_map_learned.pkl"
+color_map_path = r"C:\src\repos\PytorchDL\data\blender_export\color_map.pkl"
+
+# Load the color map
+with open(color_map_path, "rb") as f:
     face_colors = pickle.load(f)
-    
+
+# Load face colors
+with open(color_map_path, "rb") as f:
+    face_colors = pickle.load(f)
 # Assign color by labels
 color_faces_by_labels(obj, face_colors)
 
@@ -90,3 +125,15 @@ for area in bpy.context.screen.areas:
         for space in area.spaces:
             if space.type == 'VIEW_3D':
                 space.shading.type = 'MATERIAL'
+                
+
+# Map colors to labels (you can define your own)
+color_label_map = {
+    "label_1": (1.0, 0.0, 0.0, 1.0),  # Red
+    "label_2": (0.0, 1.0, 0.0, 1.0),  # Green
+    "label_3": (0.0, 0.0, 1.0, 1.0),  # Blue
+    # Add as needed
+}
+
+# Then call:
+create_legend(color_label_map, start_location=(100, 0, 0))
