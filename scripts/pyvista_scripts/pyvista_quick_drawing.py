@@ -291,10 +291,12 @@ def draw_labels_from_bin():
 
 def draw_sdf_from_bin():
     id = "00000004"
-
+    '''
     obj_loc = f"C:/Local_Data/ABC/ABC_parsed_files/{id}/{id}.obj"
 
     target_dir = f"C:/Local_Data/ABC/ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2/{id}"
+    '''
+    target_dir = r"C:\Local_Data\cropping_test\sdf_segments"
 
     ignored_files = ["origins.bin", "VertToGridIndex.bin", "VertTypeMap.bin", "TypeCounts.bin", "FaceTypeMap.bin",
                      "FaceToGridIndex.bin"]

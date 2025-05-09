@@ -1,8 +1,6 @@
 import os.path
 from visualization import color_templates
 import torch
-from networkx.algorithms.distance_measures import radius
-from sympy.stats.rv import probability
 import pickle
 from utility.data_exchange import cppIO
 from dl_torch.models.UNet3D_Segmentation import UNet3D_16EL
@@ -10,16 +8,126 @@ from dl_torch.data_utility.InteractiveDataset import InteractiveDataset
 from dl_torch.data_utility.HelperFunctionsABC import get_ABC_bin_arry_from_segment_dir
 import numpy as np
 import pyvista as pv
-import torch.nn.functional as F
-import itertools
+from dl_torch.model_utility import Custom_Metrics
+
+def __eval_model_on_random_sample():
+    #Setup data and model
+    data_loc = r'C:\Local_Data\ABC\ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2'
+    weights_loc = r'../../data/model_weights/UNet3D_SDF_16EL_n_class_10/UNet3D_SDF_16EL_n_class_10_lr[1e-05]_lrdc[1e-01]_bs4_save_200.pth'
+    kernel_size = 16
+    padding = 4
+    n_classes = 10
+    sample_size = 500
+    # Load data
+    ignored_files = ["origins.bin", "VertToGridIndex.bin", "VertTypeMap.bin", "TypeCounts.bin", "FaceTypeMap.bin",
+                     "FaceToGridIndex.bin"]
+
+    data_dir = os.listdir(data_loc)
+
+    np.random.seed(42)
+
+    sample_indices = np.random.randint(low=0, high=len(data_dir)-1, size=sample_size)
+
+    sample_result = []
+
+    for n, index in enumerate(sample_indices):
+
+        if len(os.listdir(os.path.join(data_loc, data_dir[index]))) < len(ignored_files):
+            print(f"Sample {n}: skipped mesh {data_dir[index]} -> incorrect preprocessing")
+            continue
+
+        data_arrays = get_ABC_bin_arry_from_segment_dir(os.path.join(data_loc, data_dir[index]), ignored_files)
+
+        # data torch
+        model_input = torch.tensor(np.array(data_arrays))
+        model_input = model_input.unsqueeze(1)
+
+        # load model
+        print("Evaluating Model")
+        device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+        print("Using device:", device)
+
+        model = UNet3D_16EL(in_channels=1, out_channels=10)
+        state_dict = torch.load(weights_loc)
+
+        model.load_state_dict(state_dict)  # it takes the loaded dictionary, not the path file itself
+        model.to(device)
+        model.eval()
+
+        # use model
+        with torch.no_grad():
+            model_input = model_input.to(device)
+            model_output = model(model_input)
+            model_output = model_output.cpu()
+
+            _, prediction = torch.max(model_output, 1)
+            prediction = prediction.cpu().numpy()
+            model_output = model_output.numpy()
+
+        # assemble outputs
+
+        origins = cppIO.read_float_matrix(os.path.join(data_loc, data_dir[index], "origins.bin"))
+        bottom_coord = np.asarray(origins[0])
+        top_coord = np.asarray(origins[len(origins) - 1])
+        top_coord += [kernel_size - 1, kernel_size - 1, kernel_size - 1]
+        offsets = [[0, 0, 0] - bottom_coord + origin for origin in origins]
+
+        dim_vec = top_coord - bottom_coord
+
+        full_grid = np.zeros(shape=(int(dim_vec[0]), int(dim_vec[1]), int(dim_vec[2])))
+
+        for g_index in range(prediction.shape[0]):
+
+            grid = prediction[g_index, :]
+
+            offset = offsets[g_index]
+
+            for x in range(int(padding * 0.5), kernel_size - int(padding * 0.5)):
+                for y in range(int(padding * 0.5), kernel_size - int(padding * 0.5)):
+                    for z in range(int(padding * 0.5), kernel_size - int(padding * 0.5)):
+                        full_grid[int(offset[0]) + x, int(offset[1]) + y, int(offset[2]) + z] = grid[x, y, z]
+
+        color_temp = color_templates.default_color_template_abc()
+
+        index_to_class = color_templates.get_index_to_class_dict(color_temp)
+        class_to_index = color_templates.get_class_to_index_dict(color_temp)
+
+        # map color to faces
+
+        FaceToGridIndex = cppIO.read_float_matrix(os.path.join(data_loc, data_dir[index], "FaceToGridIndex.bin"))
+
+        face_colors = []
+        ftm_prediction = []
+
+        for face_index in FaceToGridIndex:
+            gird_coord = face_index - bottom_coord
+            face_class_index = full_grid[int(gird_coord[0]), int(gird_coord[1]), int(gird_coord[2])]
+
+            ftm_prediction.append(face_class_index)
+
+        ftm_ground_truth = cppIO.read_type_map_from_binary(os.path.join(data_loc, data_dir[index], "FaceTypeMap.bin"))
+
+        ftm_ground_truth = [item[0] for item in ftm_ground_truth]
+
+        ftm_ground_truth = [class_to_index[item] for item in ftm_ground_truth]
+
+        sample_iou = Custom_Metrics.mesh_IOU(ftm_prediction, ftm_ground_truth).item()
+
+        print(f"Sample {n}: Mesh {data_dir[index]} Intersection Over Union {sample_iou}")
+
+        sample_result.append([n, data_dir[index], sample_iou])
+
+    # saving
+    with open(r"../../data/training_statistics/UNet_Segmentation_sample.pkl", "wb") as f:
+        pickle.dump(sample_result, f)
 
 def __visu_mesh_model_on_dir():
     # parameters
-    data_loc = r'C:\Local_Data\ABC\ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2\00000002'
-    weights_loc = r'../../data/model_weights/UNet3D_SDF_16EL/UNet3D_SDF_16EL_lr[1e-05]_lrdc[1e-01]_bs4_save_400.pth'
+    data_loc = r'C:\Local_Data\ABC\ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2\00001095'
+    weights_loc = r'../../data/model_weights/UNet3D_SDF_16EL_n_class_10/UNet3D_SDF_16EL_n_class_10_lr[1e-05]_lrdc[1e-01]_bs4_save_200.pth'
     kernel_size = 16
     padding = 4
-    n_classes = 7
+    n_classes = 10
     # Load data
     ignored_files = ["origins.bin", "VertToGridIndex.bin", "VertTypeMap.bin", "TypeCounts.bin", "FaceTypeMap.bin",
                      "FaceToGridIndex.bin"]
@@ -34,7 +142,7 @@ def __visu_mesh_model_on_dir():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print("Using device:", device)
 
-    model = UNet3D_16EL()
+    model = UNet3D_16EL(in_channels=1, out_channels=10)
     state_dict = torch.load(weights_loc)
 
     model.load_state_dict(state_dict)  # it takes the loaded dictionary, not the path file itself
@@ -59,13 +167,6 @@ def __visu_mesh_model_on_dir():
     top_coord += [kernel_size - 1, kernel_size - 1, kernel_size - 1]
     offsets = [[0,0,0] - bottom_coord + origin for origin in origins]
 
-    color_temp = color_templates.small_ABC_template()
-
-    class_list = color_templates.get_class_list(color_temp)
-
-    custom_colors = color_templates.get_color_dict(color_temp)
-    custom_opacity = color_templates.get_opacity_dict(color_temp)
-
     dim_vec = top_coord - bottom_coord
 
     full_grid = np.zeros(shape=(int(dim_vec[0]), int(dim_vec[1]), int(dim_vec[2])))
@@ -81,7 +182,7 @@ def __visu_mesh_model_on_dir():
                 for z in range(int(padding * 0.5), kernel_size - int(padding * 0.5)):
                     full_grid[int(offset[0]) + x,int(offset[1]) + y, int(offset[2]) + z] = grid[x,y,z]
 
-    color_temp = color_templates.small_ABC_template()
+    color_temp = color_templates.default_color_template_abc()
 
     class_list = color_templates.get_class_list(color_temp)
 
@@ -89,17 +190,21 @@ def __visu_mesh_model_on_dir():
     custom_opacity = color_templates.get_opacity_dict(color_temp)
 
     index_to_class = color_templates.get_index_to_class_dict(color_temp)
+    class_to_index = color_templates.get_class_to_index_dict(color_temp)
 
     #map color to faces
 
     FaceToGridIndex = cppIO.read_float_matrix(os.path.join(data_loc, "FaceToGridIndex.bin"))
 
     face_colors = []
+    ftm_prediction = []
 
     for face_index in FaceToGridIndex:
         gird_coord = face_index - bottom_coord
         face_class_index = full_grid[int(gird_coord[0]), int(gird_coord[1]), int(gird_coord[2])]
         face_class = index_to_class[int(face_class_index)]
+
+        ftm_prediction.append(face_class)
 
         if face_class in custom_colors:
             rgb = custom_colors[face_class]
@@ -113,7 +218,15 @@ def __visu_mesh_model_on_dir():
     with open(r"../../data/blender_export/color_map_learned.pkl", "wb") as f:
         pickle.dump(face_colors, f)
 
-    print()
+    ftm_ground_truth = cppIO.read_type_map_from_binary(os.path.join(data_loc, "FaceTypeMap.bin"))
+
+    ftm_ground_truth = [item[0] for item in ftm_ground_truth]
+
+    ftm_ground_truth = [class_to_index[item] for item in ftm_ground_truth]
+
+    ftm_prediction = [class_to_index[item] for item in ftm_prediction]
+
+    print(f"Mesh Intersection Over Union {Custom_Metrics.mesh_IOU(ftm_prediction, ftm_ground_truth)}")
 
 def __visu_voxel_model_on_dir():
     # parameters

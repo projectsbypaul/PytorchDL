@@ -6,29 +6,19 @@ VisualProperties = Dict[str, Tuple[Color, Opacity]]
 
 def default_color_template_abc() -> VisualProperties:
     return {
+        'BSpline': ((138, 43, 226), 1.0),
         'Cone': ((0, 0, 255), 1.0),
         'Cylinder': ((255, 0, 0), 1.0),
-        'Edge': ((255, 255, 0), 1.0),
-        'Plane': ((255, 20, 147), 1.0),
-        'Sphere': ((128, 0, 0), 1.0),
-        'Torus': ((0, 255, 255), 1.0),
-        'Revolution': ((0, 128, 0), 1.0),
         'Extrusion': ((255, 165, 0), 1.0),
         'Other': ((128, 128, 128), 1.0),
-        'BSpline': ((138, 43, 226), 1.0),
+        'Plane': ((255, 20, 147), 1.0),
+        'Revolution': ((0, 128, 0), 1.0),
+        'Sphere': ((128, 0, 0), 1.0),
+        'Torus': ((0, 255, 255), 1.0),
         'Void': ((0, 0, 0), 0.0),
     }
 
-def small_ABC_template() -> VisualProperties:
-    return {
-        'Cone': ((0, 0, 255), 0.0),            # blue, fully transparent
-        'Cylinder': ((255, 0, 0), 1.0),        # red
-        'Edge': ((255, 255, 0), 1.0),          # yellow
-        'Plane': ((255, 192, 203), 1.0),       # pink
-        'Sphere': ((128, 0, 0), 1.0),          # dark red
-        'Torus': ((0, 255, 255), 1.0),         # cyan
-        'Void': ((255, 255, 125), 1.0),        # pale yellow
-    }
+
 
 def get_color(template: VisualProperties, class_name: str) -> Color:
     return template.get(class_name, template['Other'])[0]

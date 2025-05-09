@@ -1,4 +1,5 @@
 import torch
+from torch.distributed.checkpoint.state_dict import get_state_dict
 from torch.utils.data import Dataset, DataLoader, random_split
 import os
 from typing import List, Tuple, Dict, Optional
@@ -120,10 +121,8 @@ def main() -> None:
     location = r"../../data/datasets/ABC/ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2.torch"
     dataset = InteractiveDataset.load_dataset(location)
     # labels to channel last -> channel first
-    dataset.labels = dataset.labels.permute(0,4,1,2,3)
     print(dataset.get_info())
     dataset.save_dataset(location)
-
 
 
 if __name__ == "__main__":
