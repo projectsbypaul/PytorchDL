@@ -8,6 +8,7 @@ from dl_torch.data_utility.DataParsing import clean_up_files
 from dl_torch.data_utility import DataParsing
 from pathlib import Path
 from utility.data_exchange.cppIO import read_float_matrix
+import pandas as pd
 
 def extract_number(s):
     match = re.search(r'(\d+)(?!.*\d)', s)
@@ -31,6 +32,63 @@ def get_ABC_bin_arry_from_segment_dir(segment_dir : str,ignore_list : list[str])
         _, _, sdf = cppIO.read_3d_array_from_binary(file_path)
         bin_arrays.append(sdf)
     return bin_arrays
+
+def get_highest_count_class(class_counts):
+    # Separate 'Void' count, defaulting to 0 if not present
+    void_count = class_counts.get('Void', 0)
+
+    # Create a dictionary of other classes (excluding 'Void')
+    other_classes = {key: value for key, value in class_counts.items() if key != 'Void'}
+
+    # Check if all other classes have a count of 0 or if there are no other classes
+    all_others_zero = True
+    if not other_classes:  # Handles case where only 'Void' might exist
+        all_others_zero = True
+    else:
+        all_others_zero = all(count == 0 for count in other_classes.values())
+
+    if all_others_zero:
+        # If all other classes are 0, the result is 'Void' if its count > 0
+        if void_count > 0:
+            return 'Void'
+        else:
+            # All classes (including Void) are 0 or not present meaningfully
+            return None  # Or "No significant class" or similar
+    else:
+        # Find the class with the highest count among 'other_classes'
+        # Filter out items with 0 count before finding max, to avoid issues if all are 0 (covered by above)
+        # but good practice if only some are zero.
+
+        # Find the maximum count in other_classes
+        max_count_other = 0
+        if other_classes:  # Ensure other_classes is not empty
+            max_count_other = max(other_classes.values())
+
+        # If all remaining 'other_classes' actually ended up being zero (e.g. {'A':0, 'B':0})
+        # this can happen if the initial check for all_others_zero passed because of non-zero
+        # values that were then not considered the max.
+        # However, our `all_others_zero` check should cover this primarily.
+        # The main goal here is to find the key(s) for that max_count_other if it's > 0.
+
+        if max_count_other == 0:
+            # This case should ideally be caught by `all_others_zero` leading to checking Void.
+            # If somehow reached and void_count > 0, it implies an edge case not fully handled.
+            # But based on the logic, if other_classes has items and their max is 0,
+            # then all_others_zero should have been true.
+            # For robustness, if 'Void' is the only option left with a positive count:
+            if void_count > 0:
+                return 'Void'
+            return None
+
+        # Find all classes that have this maximum count
+        highest_classes = [key for key, value in other_classes.items() if value == max_count_other]
+
+        if not highest_classes:  # Should not happen if max_count_other > 0
+            return None
+
+        # If there's a tie, you might want to define how to handle it.
+        # This example returns the first one found in case of a tie.
+        return highest_classes[0]
 
 def evaluate_voxel_class_kernel(grid, target_idx, k, class_weights):
     D, _, _, C = grid.shape
@@ -56,6 +114,121 @@ def evaluate_voxel_class_kernel(grid, target_idx, k, class_weights):
 
     # Return the index of the class with the highest weighted count
     return int(np.argmax(weighted_counts))
+
+def get_ABC_segment_info_from_parquet(parquet_loc : str, source_loc : str):
+
+    loaded_df = pd.read_parquet(parquet_loc, engine='pyarrow')
+
+    segment_info = []
+
+    for index, entry in loaded_df.iterrows():
+        f_name= f"{entry["ID"]}_{entry["Segment"]}.bin"
+        sub_dir = entry["ID"]
+        segment = entry["Segment"]
+        segment_info.append([sub_dir, segment, f_name])
+
+    return segment_info
+
+def create_ABC_Dataset_from_parquet(parquet_name :str):
+
+    # parquet_name = "ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2_balanced_n_1000"
+
+    segment_dir = r"C:\Local_Data\ABC\ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2"
+    parquet_dir = r"C:\Local_Data\ABC\ABC_statistics"
+
+    source_dir = r"C:\Local_Data\ABC\ABC_parsed_files"
+    torch_dir = r"C:\Local_Data\ABC\ABC_torch"
+
+
+    ignored_files = ["origins.bin", "VertToGridIndex.bin", "VertTypeMap.bin", "TypeCounts.bin", "FaceTypeMap.bin", "FaceToGridIndex.bin"]
+    n_min_files = 5
+
+    # Set up dictionary
+    class_list = np.array(['BSpline','Cone','Cylinder','Extrusion','Other','Plane','Revolution','Sphere','Torus','Void'])
+    class_list = np.sort(class_list)
+    class_indices = np.arange(len(class_list))
+    class_lot = dict(zip(class_list, class_indices))
+    index_lot = dict(zip(class_indices, class_list, ))
+
+
+    parquet_loc = os.path.join(parquet_dir, parquet_name + ".parquet")
+    segment_info = get_ABC_segment_info_from_parquet(parquet_loc, segment_dir)
+
+    segment_path = [os.path.join(segment_dir, item[0], item[2]) for item in segment_info]
+
+    bin_arrays = []
+
+    labels = []
+
+    for p_index, path in enumerate(segment_path):
+
+        segment_index = segment_info[p_index][1]
+
+        if len(os.listdir(os.path.dirname(path))) > n_min_files:
+
+            origins = cppIO.read_float_matrix(os.path.dirname(path) + "/origins.bin")
+            face_type_map = cppIO.read_type_map_from_binary(os.path.dirname(path) + "/FaceTypeMap.bin")
+            face_to_index_map = cppIO.read_float_matrix(os.path.dirname(path) + "/FaceToGridIndex.bin")
+            _, _, grid = cppIO.read_3d_array_from_binary(path)
+
+            bin_arrays.append(grid)
+
+            df_voxel_count = dict()
+
+            for index, surf_type in enumerate(class_list):
+                df_voxel_count.update({surf_type: 0})
+
+            grid_dim = grid.shape[0]
+
+            origin = np.asarray(origins[segment_index])
+
+            top = origin + [grid_dim - 1, grid_dim - 1, grid_dim - 1]
+
+            label = np.zeros(shape=[grid_dim, grid_dim, grid_dim, class_list.shape[0]])
+
+            write_count = 0
+
+            for face_index, face_center in enumerate(face_to_index_map):
+
+                if origin[0] <= face_center[0] <= top[0] and origin[1] <= face_center[1] <= top[1] and origin[2] <= \
+                        face_center[2] <= \
+                        top[2]:
+                    grid_index = face_center - origin
+
+                    type_string = face_type_map[face_index]
+                    one_hot_index = class_lot[type_string[0]]
+                    label[int(grid_index[0]), int(grid_index[1]), int(grid_index[2]), one_hot_index] += 1
+                    write_count += 1
+
+            # print(f"wrote {write_count} labels for part {path}")
+
+            for i, j, k in np.ndindex(label.shape[0], label.shape[1], label.shape[2]):
+                voxel = label[i, j, k, :]
+
+                if np.sum(voxel) > 0:
+                    max_index = np.argmax(voxel)
+                    label[i, j, k, :] = np.zeros_like(voxel)
+                    label[i, j, k, max_index] = 1
+                    df_voxel_count[index_lot[max_index]] += 1
+                else:
+                    label[i, j, k, class_lot["Void"]] = 1
+                    df_voxel_count['Void'] += 1
+
+            # print(f"Writer Counter part {path} grid {grid_index}")
+            # print(df_voxel_count.keys())
+            # print(df_voxel_count.values())
+
+            labels.append(label)
+
+            print(f"Added {segment_info[p_index]} to data set... {p_index + 1} of {len(segment_path)} processed")
+
+    data = torch.tensor(np.array(bin_arrays))
+    labels = torch.tensor(np.array(labels))
+    labels = torch.permute(labels, (0, 4, 1, 2, 3))
+    dataset = InteractiveDataset(data, labels, class_lot, set_name=parquet_name)
+
+    dataset.save_dataset(os.path.join(torch_dir, parquet_name + ".torch"))
+
 
 def create_ABC_AE_sub_Dataset():
 
@@ -123,7 +296,7 @@ def create_ABC_sub_Dataset():
     n_min_files = 5
 
     # Set up dictionary
-    class_list = np.array(['Cone', 'Revolution', 'Sphere', 'Plane', 'Extrusion', 'Other', 'Cylinder', 'Torus', 'BSpline', 'Void'])
+    class_list = np.array(['BSpline','Cone','Cylinder','Extrusion','Other','Plane','Revolution','Sphere','Torus','Void'])
     class_list = np.sort(class_list)
     class_indices = np.arange(len(class_list))
     class_lot = dict(zip(class_list, class_indices))
@@ -248,7 +421,12 @@ def join_ABC_sub_Datasets():
 
 def main():
     # create_ABC_AE_sub_Dataset()
-    join_ABC_sub_Datasets()
+    # join_ABC_sub_Datasets()
+    create_ABC_Dataset_from_parquet("ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2_balanced_n_1000")
+    create_ABC_Dataset_from_parquet("ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2_balanced_n_1500")
+    create_ABC_Dataset_from_parquet("ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2_balanced_n_2000")
+    create_ABC_Dataset_from_parquet("ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2_balanced_n_3000")
+    create_ABC_Dataset_from_parquet("ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2_balanced_n_5000")
 
 if __name__ == "__main__":
     main()

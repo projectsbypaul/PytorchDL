@@ -123,7 +123,7 @@ def __eval_model_on_random_sample():
 
 def __visu_mesh_model_on_dir():
     # parameters
-    data_loc = r'C:\Local_Data\ABC\ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2\00001095'
+    data_loc = r'C:\Local_Data\Segmentation_Alex\hx_gyroid_2'
     weights_loc = r'../../data/model_weights/UNet3D_SDF_16EL_n_class_10/UNet3D_SDF_16EL_n_class_10_lr[1e-05]_lrdc[1e-01]_bs4_save_200.pth'
     kernel_size = 16
     padding = 4
@@ -218,15 +218,15 @@ def __visu_mesh_model_on_dir():
     with open(r"../../data/blender_export/color_map_learned.pkl", "wb") as f:
         pickle.dump(face_colors, f)
 
-    ftm_ground_truth = cppIO.read_type_map_from_binary(os.path.join(data_loc, "FaceTypeMap.bin"))
+    # ftm_ground_truth = cppIO.read_type_map_from_binary(os.path.join(data_loc, "FaceTypeMap.bin"))
 
-    ftm_ground_truth = [item[0] for item in ftm_ground_truth]
+    # ftm_ground_truth = [item[0] for item in ftm_ground_truth]
 
-    ftm_ground_truth = [class_to_index[item] for item in ftm_ground_truth]
+    # ftm_ground_truth = [class_to_index[item] for item in ftm_ground_truth]
 
-    ftm_prediction = [class_to_index[item] for item in ftm_prediction]
+    # ftm_prediction = [class_to_index[item] for item in ftm_prediction]
 
-    print(f"Mesh Intersection Over Union {Custom_Metrics.mesh_IOU(ftm_prediction, ftm_ground_truth)}")
+    # print(f"Mesh Intersection Over Union {Custom_Metrics.mesh_IOU(ftm_prediction, ftm_ground_truth)}")
 
 def __visu_voxel_model_on_dir():
     # parameters
@@ -354,7 +354,7 @@ def __visu_voxel_model_on_dir():
 
 
 def __visu_train_result():
-    weights_loc = r'../data/model_weights/UNet3D_SDF_16EL/UNet3D_SDF_16EL_lr[1e-05]_lrdc[1e-01]_bs4_save_400.pth'
+    weights_loc = r'../data/model_weights/UNet3D_SDF_16EL/UNet3D_SDF_16EL_lr[1e-05]_lrdc[1e-01]_bs4_save_100.pth'
     data_loc = r'../data/datasets/ABC/ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2.torch'
 
     print("Evaluating Model")

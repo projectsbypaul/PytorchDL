@@ -118,9 +118,12 @@ class InteractiveDataset(Dataset):
 
 
 def main() -> None:
-    location = r"../../data/datasets/ABC/ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2.torch"
+    location = r"../../data/datasets/ABC/ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2_balanced_n_1000.torch"
     dataset = InteractiveDataset.load_dataset(location)
     # labels to channel last -> channel first
+    label = dataset.labels
+    label = torch.permute(label, (0,4,1,2,3))
+    dataset.labels = label
     print(dataset.get_info())
     dataset.save_dataset(location)
 
