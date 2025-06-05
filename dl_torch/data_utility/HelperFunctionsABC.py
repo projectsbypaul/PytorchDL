@@ -1,3 +1,5 @@
+import math
+
 import numpy as np
 import re
 import os
@@ -134,7 +136,7 @@ def create_ABC_Dataset_from_parquet(parquet_name :str):
     # parquet_name = "ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2_balanced_n_1000"
 
     segment_dir = r"C:\Local_Data\ABC\ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2"
-    parquet_dir = r"C:\Local_Data\ABC\ABC_statistics"
+    parquet_dir = r"C:\Local_Data\ABC\ABC_statistics\balance_parquets\ABC_chunk_01"
 
     source_dir = r"C:\Local_Data\ABC\ABC_parsed_files"
     torch_dir = r"C:\Local_Data\ABC\ABC_torch"
@@ -229,7 +231,6 @@ def create_ABC_Dataset_from_parquet(parquet_name :str):
 
     dataset.save_dataset(os.path.join(torch_dir, parquet_name + ".torch"))
 
-
 def create_ABC_AE_sub_Dataset():
 
     data_dir = r"C:\Local_Data\ABC\ABC_AE_Data_ks_16_pad_4_bw_5_vs_adaptive"
@@ -289,10 +290,10 @@ def create_ABC_AE_sub_Dataset():
 def create_ABC_sub_Dataset():
 
     segment_dir = r"C:\Local_Data\ABC\ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2"
-    source_dir = r"C:\Local_Data\ABC\ABC_parsed_files"
+    source_dir = r"C:\Local_Data\ABC\ABC_parsed_files\ABC_chunk_01"
     torch_dir = r"C:\Local_Data\ABC\ABC_torch\torch_data_ks_16_pad_4_bw_5_vs_adaptive_n2"
 
-    ignored_files = ["origins.bin", "VertToGridIndex.bin", "VertTypeMap.bin", "TypeCounts.bin", "FaceTypeMap.bin", "FaceToGridIndex.bin"]
+    ignored_files = ["origins.bin", "VertToGridIndex.bin", "VertTypeMap.bin", "Typ eCounts.bin", "FaceTypeMap.bin", "FaceToGridIndex.bin"]
     n_min_files = 5
 
     # Set up dictionary
@@ -385,8 +386,8 @@ def create_ABC_sub_Dataset():
 
 def join_ABC_sub_Datasets():
     # Define the parent folder and file extension
-    parent_folder = Path(r"C:\Local_Data\ABC\ABC_torch\AE_ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2") # Replace with your folder path
-    joined_name = "AE_ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2"
+    parent_folder = Path(r"C:\Local_Data\ABC\ABC_torch\torch_data_ks_16_pad_4_bw_5_vs_adaptive_n2") # Replace with your folder path
+    joined_name = "AE_ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2_chunk_01"
     file_extension = ".torch"  # Change to your desired extension
 
     # Get all matching file paths
@@ -408,25 +409,73 @@ def join_ABC_sub_Datasets():
             except:
                 print(f"merge failed on subset {index}")
 
-    #data_set_joined.labels = data_set_joined.labels.permute(0, 4, 1, 2, 3)
-    data_set_joined.labels = data_set_joined.labels.unsqueeze(1)
+    data_set_joined.labels = data_set_joined.labels.permute(0, 4, 1, 2, 3)
+    #data_set_joined.labels = data_set_joined.labels.unsqueeze(1)
     data_set_joined.save_dataset(f"../../data/datasets/ABC/{joined_name}.torch")
 
     load_test = InteractiveDataset.load_dataset(f"../../data/datasets/ABC/{joined_name}.torch")
 
-    # clean_up_files(file_paths)
+    clean_up_files(file_paths)
 
     print(load_test.get_info())
 
+def batch_ABC_sub_Datasets():
+    # Define the parent folder and file extension
+    batch_size = 250
+    parent_folder = Path(r"C:\Local_Data\ABC\ABC_torch\torch_data_ks_16_pad_4_bw_5_vs_adaptive_n2") # Replace with your folder path
+    dataset_name = "AE_ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2_chunk_01"
+    file_extension = ".torch"  # Change to your desired extension
+
+    # Get all matching file paths
+    file_paths = list(parent_folder.rglob(f"*{file_extension}"))
+
+    batch_count = math.ceil(len(file_paths)/batch_size)
+
+    batch_start_indicies = [(index)*batch_size for index in range(batch_count)]
+
+    for index, start_index in enumerate(batch_start_indicies):
+
+        data_set_joined = InteractiveDataset.load_dataset(file_paths[start_index])
+
+        if index < (batch_count- 1):
+            for i in range(start_index + 1, start_index + batch_size):
+                try:
+                    data_set = InteractiveDataset.load_dataset(file_paths[i])
+                    data_set_joined.data = torch.vstack([data_set_joined.data, data_set.data])
+                    data_set_joined.labels = torch.vstack([data_set_joined.labels, data_set.labels])
+                    print(f"merged {os.path.basename(file_paths[i])} into {data_set_joined.get_name()}")
+                except:
+                     print(f"merge failed on subset {index}")
+            data_set_joined.labels = data_set_joined.labels.permute(0, 4, 1, 2, 3)
+            batch_name = dataset_name + "_batch_" + str(index)
+            data_set_joined.save_dataset(f"../../data/datasets/ABC/{batch_name}.torch")
+
+            load_test = InteractiveDataset.load_dataset(f"../../data/datasets/ABC/{dataset_name}.torch")
+            print(load_test.get_info())
+
+        else:
+            for i in range(start_index + 1, len(file_paths)):
+                try:
+                    data_set = InteractiveDataset.load_dataset(file_paths[i])
+                    data_set_joined.data = torch.vstack([data_set_joined.data, data_set.data])
+                    data_set_joined.labels = torch.vstack([data_set_joined.labels, data_set.labels])
+                    print(f"merged {os.path.basename(file_paths[i])} into {data_set_joined.get_name()}")
+                except:
+                    print(f"merge failed on subset {index}")
+
+        data_set_joined.labels = data_set_joined.labels.permute(0, 4, 1, 2, 3)
+        batch_name = dataset_name + "_batch_" + str(index)
+        data_set_joined.save_dataset(f"../../data/datasets/ABC/{batch_name}.torch")
+
+        load_test = InteractiveDataset.load_dataset(f"../../data/datasets/ABC/{dataset_name}.torch")
+        print(load_test.get_info())
+
+       # clean_up_files(file_paths)
+
+
 
 def main():
-    # create_ABC_AE_sub_Dataset()
-    # join_ABC_sub_Datasets()
-    create_ABC_Dataset_from_parquet("ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2_balanced_n_1000")
-    create_ABC_Dataset_from_parquet("ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2_balanced_n_1500")
-    create_ABC_Dataset_from_parquet("ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2_balanced_n_2000")
-    create_ABC_Dataset_from_parquet("ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2_balanced_n_3000")
-    create_ABC_Dataset_from_parquet("ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2_balanced_n_5000")
+    batch_ABC_sub_Datasets()
 
 if __name__ == "__main__":
     main()

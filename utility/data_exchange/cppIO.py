@@ -1,5 +1,7 @@
 import numpy as np
 import struct
+import os
+import re
 
 def read_3d_array_from_binary(filename: str) -> tuple[ : , : , np.ndarray]:
     with open(filename, "rb") as file:
@@ -16,7 +18,6 @@ def read_3d_array_from_binary(filename: str) -> tuple[ : , : , np.ndarray]:
         data: np.ndarray = np.fromfile(file, dtype=np.float32).reshape((dim1, dim2, dim3))
 
         return voxel_size, background, data
-
 
 def read_type_map_from_binary(filename : str):
     data = []
@@ -66,3 +67,5 @@ def read_type_counts_from_binary(filename):
             surface_type_counts[key] = value
 
     return surface_type_counts
+
+

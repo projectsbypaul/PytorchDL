@@ -13,7 +13,7 @@ from dl_torch.model_utility import Custom_Metrics
 def __eval_model_on_random_sample():
     #Setup data and model
     data_loc = r'C:\Local_Data\ABC\ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2'
-    weights_loc = r'../../data/model_weights/UNet3D_SDF_16EL_n_class_10/UNet3D_SDF_16EL_n_class_10_lr[1e-05]_lrdc[1e-01]_bs4_save_200.pth'
+    weights_loc = r'../../data\model_weights\UNet3D_SDF_16EL_n_class_10_bln_5000\UNet3D_SDF_16EL_n_class_10_bln_5000_lr[1e-06]_lrdc[0.1]bs4_save_last.pth'
     kernel_size = 16
     padding = 4
     n_classes = 10
@@ -231,7 +231,7 @@ def __visu_mesh_model_on_dir():
 def __visu_voxel_model_on_dir():
     # parameters
     data_loc = r'C:\Local_Data\ABC\ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2\00000002'
-    weights_loc = r'../../data/model_weights/UNet3D_SDF_16EL/UNet3D_SDF_16EL_lr[1e-05]_lrdc[1e-01]_bs4_save_400.pth'
+    weights_loc = r'../../data\model_weights\UNet3D_SDF_16EL_n_class_10_bln_5000.pth'
     kernel_size = 16
     padding = 4
     n_classes = 7
@@ -354,8 +354,8 @@ def __visu_voxel_model_on_dir():
 
 
 def __visu_train_result():
-    weights_loc = r'../data/model_weights/UNet3D_SDF_16EL/UNet3D_SDF_16EL_lr[1e-05]_lrdc[1e-01]_bs4_save_100.pth'
-    data_loc = r'../data/datasets/ABC/ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2.torch'
+    weights_loc = r'../../data\model_weights\UNet3D_SDF_16EL_n_class_10_bln_5000\UNet3D_SDF_16EL_n_class_10_bln_5000_lr[1e-05]_lrdc[0.1]bs4_save_last.pth'
+    data_loc = r'../data/datasets/ABC/ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2_samples_37273.torch'
 
     print("Evaluating Model")
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -505,7 +505,7 @@ def __visu_train_result():
 
 
 def main():
-   __visu_mesh_model_on_dir()
+   __eval_model_on_random_sample()
 
 if __name__=="__main__":
     main()

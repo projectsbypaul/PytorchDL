@@ -2,6 +2,7 @@ import pyvista as pv
 import numpy as np
 from dl_torch.data_utility import DataParsing
 from utility.data_exchange import cppIO
+from utility.data_exchange import cppIOexcavator
 import os
 import random
 from matplotlib.colors import ListedColormap
@@ -141,14 +142,21 @@ def draw_from_bin():
 
 def draw_labels_from_bin():
 
-    id = "00000004"
+    id = "00010084"
 
-    obj_loc = f"C:/Local_Data/ABC/ABC_parsed_files/{id}/{id}.obj"
+    target_dir = f"H:\ABC\ABC_Datasets\Segmentation\ABC_Chunk_01\ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2/{id}"
 
-    target_dir = f"C:/Local_Data/ABC/ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2/{id}"
+    bin_array_file = target_dir + "/segmentation_data_segments.bin"
+    segment_info_file = target_dir + "/segmentation_data.dat"
 
-    ignored_files = ["origins.bin", "VertToGridIndex.bin", "VertTypeMap.bin", "TypeCounts.bin", "FaceTypeMap.bin",
-                     "FaceToGridIndex.bin"]
+    segment_data = cppIOexcavator.parse_dat_file(segment_info_file)
+
+    origins = segment_data["ORIGIN_CONTAINER"]["data"]
+    face_type_map =  np.array(list(segment_data["FACE_TYPE_MAP"].values()))
+    face_to_index_map = segment_data["FACE_TO_GRID_INDEX_CONTAINER"]["data"]
+    uniques = segment_data['TYPE_COUNT_MAP']
+
+    bin_arrays = cppIOexcavator.load_segments_from_binary(bin_array_file)
 
     # Set up dictionary
     class_list = np.array(
@@ -158,19 +166,7 @@ def draw_labels_from_bin():
     class_lot = dict(zip(class_list, class_indices))
     index_lot =  dict(zip(class_indices, class_list,))
 
-    origins = cppIO.read_float_matrix(target_dir + "/origins.bin")
-    face_type_map = cppIO.read_type_map_from_binary(target_dir + "/FaceTypeMap.bin")
-    face_to_index_map = cppIO.read_float_matrix(target_dir + "/FaceToGridIndex.bin")
-
-    bin_arrays = HelperFunctionsABC.get_ABC_bin_arry_from_segment_dir(target_dir, ignored_files)
-
-    _, faces = DataParsing.parse_obj(obj_loc)
-
     labels = []
-
-    uniques = cppIO.read_type_counts_from_binary(target_dir + "/TypeCounts.bin")
-
-    print(uniques)
 
     for grid_index, grid in enumerate(bin_arrays):
 
@@ -198,7 +194,7 @@ def draw_labels_from_bin():
                 grid_index = face_center - origin
 
                 type_string = face_type_map[face_index]
-                one_hot_index = class_lot[type_string[0]]
+                one_hot_index = class_lot[type_string]
                 l[int(grid_index[0]), int(grid_index[1]), int(grid_index[2]), one_hot_index] += 1
 
         print(f"wrote {write_count} labels")
@@ -290,20 +286,17 @@ def draw_labels_from_bin():
     plotter.show()
 
 def draw_sdf_from_bin():
-    id = "00000004"
-    '''
-    obj_loc = f"C:/Local_Data/ABC/ABC_parsed_files/{id}/{id}.obj"
+    id = "00010084"
 
-    target_dir = f"C:/Local_Data/ABC/ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2/{id}"
-    '''
-    target_dir = r"C:\Local_Data\cropping_test\sdf_segments"
+    target_dir = f"H:\ABC\ABC_Datasets\Segmentation\ABC_Chunk_01\ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2/{id}"
 
-    ignored_files = ["origins.bin", "VertToGridIndex.bin", "VertTypeMap.bin", "TypeCounts.bin", "FaceTypeMap.bin",
-                     "FaceToGridIndex.bin"]
+    bin_array_file = target_dir + "/segmentation_data_segments.bin"
+    segment_info_file = target_dir + "/segmentation_data.dat"
 
-    origins = cppIO.read_float_matrix(os.path.join(target_dir, "origins.bin"))
+    segment_data = cppIOexcavator.parse_dat_file(segment_info_file)
 
-    sdf_grid = HelperFunctionsABC.get_ABC_bin_arry_from_segment_dir(target_dir, ignored_files)
+    origins = segment_data["ORIGIN_CONTAINER"]["data"]
+    sdf_grid = cppIOexcavator.load_segments_from_binary(bin_array_file)
 
     count = 0
 
@@ -338,7 +331,7 @@ def draw_sdf_from_bin():
                 scalars="sdf",  # Use the sdf values for coloring
                 cmap="coolwarm",  # Choose a colormap (optional, e.g., "viridis", "plasma", "coolwarm")
                 opacity=1.0,
-                clim=[-1, 1],
+                clim=[0, 1],
             )
             print(f"gird {index} added")
 
@@ -371,9 +364,8 @@ def draw_sdf_from_bin():
 
 
 def main():
-    draw_sdf_from_bin()
-    # test_draw_from_yml()
-    # test_draw_from_bin()
+   # draw_labels_from_bin()
+   draw_sdf_from_bin()
 
 if __name__ =="__main__":
     main()

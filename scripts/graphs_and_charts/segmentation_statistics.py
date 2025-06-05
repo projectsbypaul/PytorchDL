@@ -18,7 +18,7 @@ def __balance_dataset():
 
     np.random.seed = 420
 
-    statistic_loc = r"C:\Local_Data\ABC\ABC_statistics\ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2.parquet"
+    statistic_loc = r"C:\Local_Data\ABC\ABC_statistics\balance_parquets\ABC_chunk_01\ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2.parquet"
 
     save_loc = r"C:\Local_Data\ABC\ABC_statistics"
 
@@ -26,6 +26,16 @@ def __balance_dataset():
         ['BSpline', 'Cone', 'Cylinder', 'Extrusion', 'Other', 'Plane', 'Revolution', 'Sphere', 'Torus', 'Void'])
 
     loaded_df = pd.read_parquet(statistic_loc, engine='pyarrow')
+
+    # Extract the column as a Pandas Series
+    extracted_column = loaded_df["ID"]
+    print(f"\nExtracted column '{"ID"}':")
+    print(extracted_column)
+
+    # Get the unique elements of the Series
+    unique_elements = extracted_column.unique()
+    print(f"\nUnique elements in column '{"ID"}':")
+    print(len(unique_elements))
 
     print(f"Loaded Dataframe with {loaded_df.shape[0]} entries")
 
@@ -82,9 +92,6 @@ def __balance_dataset():
 
 
     print()
-
-
-
 
 def __data_class_contribution():
 
@@ -191,8 +198,6 @@ def __data_class_contribution():
     # pip install pyarrow pandas
     df_statistics.to_parquet(os.path.join(save_dir,os.path.basename(segment_dir) + ".parquet"), engine='pyarrow', compression='snappy')
 
-
-
 def __histogramm_segmentation_samples():
     # Load data
     data_loc = r"../../data/training_statistics"
@@ -245,6 +250,7 @@ def __histogramm_segmentation_samples():
 
 def main():
     __balance_dataset()
+    # __histogramm_segmentation_samples()
 
 if __name__ == "__main__":
     main()
