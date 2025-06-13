@@ -5,6 +5,7 @@ import torch
 import numpy as np
 import pyvista as pv
 from visualization import color_templates
+from utility.data_exchange import cppIOexcavator
 
 def run_sanity_check_on_labels_parquet():
 
@@ -114,13 +115,17 @@ def run_sanity_check_on_labels():
 
     id = "00000002"
 
-    data_path = os.path.join(r"C:\Local_Data\ABC\ABC_torch\torch_data_ks_16_pad_4_bw_5_vs_adaptive_n2", id + ".torch")
-    orgins_path  = r"C:\Local_Data\ABC\ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2\00000002\origins.bin"
+    data_path = os.path.join(r"H:\ABC\ABC_torch\torch_data_ks_16_pad_4_bw_5_vs_adaptive_n2_testing", id + ".torch")
+    target_dir  = f"H:\ABC\ABC_Datasets\Segmentation\ABC_Chunk_00\ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2\\{id}"
+
+    segment_info_file = target_dir + "/segmentation_data.dat"
+
+    segment_data = cppIOexcavator.parse_dat_file(segment_info_file)
+
+    origins = segment_data["ORIGIN_CONTAINER"]["data"]
 
     dataset = InteractiveDataset.load_dataset(data_path)
     print(dataset.get_info())
-
-    origins = cppIO.read_float_matrix(orgins_path)
 
     labels = dataset.labels.numpy()
 
@@ -198,7 +203,7 @@ def run_sanity_check_on_labels():
     plotter.show()
 
 def main():
-    run_sanity_check_on_labels_parquet()
+    run_sanity_check_on_labels()
 
 if __name__ == "__main__":
     main()

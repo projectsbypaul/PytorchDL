@@ -59,19 +59,19 @@ class InteractiveDataset(Dataset):
 
     def get_train_loader(self, batch_size : int) -> DataLoader:
 
-        self.__train_loader = DataLoader(self.__train_dataset, batch_size=batch_size, shuffle=True)
+        self.__train_loader = DataLoader(self.__train_dataset, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True)
 
         return self.__train_loader
 
     def get_test_loader(self, batch_size : int) -> DataLoader:
 
-        self.__test_loader = DataLoader(self.__test_dataset, batch_size=batch_size, shuffle=True)
+        self.__test_loader = DataLoader(self.__test_dataset, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True)
 
         return self.__test_loader
 
     def get_data_loader(self, batch_size : int) -> DataLoader:
 
-        self.__data_loader = DataLoader(self.data, batch_size=batch_size, shuffle=False)
+        self.__data_loader = DataLoader(self.data, batch_size=batch_size, shuffle=False, num_workers=4, pin_memory=True)
 
         return self.__data_loader
 
@@ -105,15 +105,32 @@ class InteractiveDataset(Dataset):
 
 
     @staticmethod
-    def load_dataset(file_path):
-        """Load dataset from a file."""
+    def load_dataset(file_path: str):
+        """Load dataset from a file with memory safety."""
+        import gc
+        import torch
+
         if not os.path.exists(file_path):
             raise FileNotFoundError(f"No dataset found at {file_path}")
 
+        # Clean up memory before loading
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+        # Load data
         loaded_data = torch.load(file_path, weights_only=False)
+
+        # Clean up again to flush anything that was freed during load
+        gc.collect()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
+
+        # Extract components
         data = loaded_data["data"]
-        labels = loaded_data["labels"] if loaded_data["labels"] is not None else None
-        class_dict : Dict = loaded_data["class_dict"] if loaded_data["class_dict"] is not None else None
+        labels = loaded_data["labels"] if loaded_data.get("labels") is not None else None
+        class_dict: Dict = loaded_data["class_dict"] if loaded_data.get("class_dict") is not None else None
+
         return InteractiveDataset(data, labels, class_dict)
 
 

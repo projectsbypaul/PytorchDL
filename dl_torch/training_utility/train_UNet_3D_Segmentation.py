@@ -162,45 +162,17 @@ def log_cuda_status():
 
 def job_0():
     model_constructor = partial(UNet3D_16EL, in_channels=1, out_channels=10)
-    model_name = "UNet3D_SDF_16EL_n_class_10_bln_5000"
-    dataset_loc = r"../../data/datasets/ABC/ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2_balanced_n_5000.torch"
+    model_name = "UNet3D_SDF_16EL_n_class_10_multiset"
+    dataset_dir = r"H:\ABC\ABC_torch\ABC_chunk_00\batched_data_ks_16_pad_4_bw_5_vs_adaptive_n2_testing"
     model_weights_loc = "../../data/model_weights/{model_name}/{run_name}_save_{epoch}.pth"
 
-    epochs = 1500
-    backup_epochs = 250
-    learning_rates = [1e-6]
-    decay_order = [1e0]
-    batch_sizes = [4]
-
-    dataset = InteractiveDataset.load_dataset(dataset_loc)
-    dataset.set_split(0.9)
-    dataset.split_dataset()
-
-    training_routine(
-        model_constructor,
-        dataset,
-        model_weights_loc,
-        model_name,
-        epochs,
-        backup_epochs,
-        learning_rates,
-        decay_order,
-        batch_sizes
-    )
-
-def job_1():
-    model_constructor = partial(UNet3D_16EL, in_channels=1, out_channels=10)
-    model_name = "UNet3D_SDF_16EL_n_class_10_bln_5000"
-    dataset_loc = r"../../data/datasets/ABC/ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2_balanced_n_5000.torch"
-    model_weights_loc = "../../data/model_weights/{model_name}/{run_name}_save_{epoch}.pth"
-
-    epochs = 1500
-    backup_epochs = 250
-    learning_rates = [1e-6]
+    epochs = 500
+    backup_epochs = 100
+    learning_rates = [1e-4]
     decay_order = [1e-1]
     batch_sizes = [4]
 
-    dataset = InteractiveDataset.load_dataset(dataset_loc)
+    dataset = InteractiveDataset.load_dataset(dataset_dir)
     dataset.set_split(0.9)
     dataset.split_dataset()
 
@@ -219,7 +191,6 @@ def job_1():
 
 def main():
     job_0()
-    job_1()
 
 if __name__ == "__main__":
   main()

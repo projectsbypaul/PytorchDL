@@ -6,7 +6,7 @@ import numpy as np
 from scipy.stats import mode
 import pandas as pd
 import os
-from  dl_torch.data_utility.HelperFunctionsABC import get_ABC_bin_arry_from_segment_dir, get_highest_count_class
+from  dl_torch.data_utility.HelperFunctionsABC import __get_ABC_bin_array_from_segment_dir, __get_highest_count_class
 from utility.data_exchange import cppIO
 from dl_torch.data_utility import DataParsing
 
@@ -175,7 +175,7 @@ def __data_class_contribution():
                         label[i, j, k, class_lot["Void"]] = 1
                         df_voxel_count['Void'] += 1
 
-                main_class = get_highest_count_class(df_voxel_count)
+                main_class = __get_highest_count_class(df_voxel_count)
 
                 new_df_entry = {"ID":path, "Segment":g_index, "MainClass": main_class , **df_voxel_count}
 
@@ -249,8 +249,8 @@ def __histogramm_segmentation_samples():
     plt.show()
 
 def main():
-    __balance_dataset()
-    # __histogramm_segmentation_samples()
+    # __balance_dataset()
+    __histogramm_segmentation_samples()
 
 if __name__ == "__main__":
     main()

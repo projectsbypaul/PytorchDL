@@ -142,9 +142,9 @@ def draw_from_bin():
 
 def draw_labels_from_bin():
 
-    id = "00010084"
+    id = "00000002"
 
-    target_dir = f"H:\ABC\ABC_Datasets\Segmentation\ABC_Chunk_01\ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2/{id}"
+    target_dir = f"H:\ABC\ABC_Datasets\Segmentation\ABC_Chunk_00\ABC_Data_ks_16_pad_4_bw_5_vs_1f0\\{id}"
 
     bin_array_file = target_dir + "/segmentation_data_segments.bin"
     segment_info_file = target_dir + "/segmentation_data.dat"
@@ -286,9 +286,9 @@ def draw_labels_from_bin():
     plotter.show()
 
 def draw_sdf_from_bin():
-    id = "00010084"
+    id = "00000002"
 
-    target_dir = f"H:\ABC\ABC_Datasets\Segmentation\ABC_Chunk_01\ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2/{id}"
+    target_dir = f"H:\ABC\ABC_Datasets\Segmentation\ABC_Chunk_00\ABC_Data_ks_16_pad_4_bw_5_vs_1f0/{id}"
 
     bin_array_file = target_dir + "/segmentation_data_segments.bin"
     segment_info_file = target_dir + "/segmentation_data.dat"
@@ -364,7 +364,7 @@ def draw_sdf_from_bin():
 
 
 def main():
-   # draw_labels_from_bin()
+   draw_labels_from_bin()
    draw_sdf_from_bin()
 
 if __name__ =="__main__":

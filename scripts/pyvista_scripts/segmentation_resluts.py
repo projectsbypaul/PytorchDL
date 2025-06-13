@@ -121,7 +121,7 @@ def __eval_model_on_random_sample():
     with open(r"../../data/training_statistics/UNet_Segmentation_sample.pkl", "wb") as f:
         pickle.dump(sample_result, f)
 
-def __visu_mesh_model_on_dir():
+def __visu_mesh_model_on_dir(data_loc : str, weights_loc : str, kernel_size : int, padding : int, n_classes):
     # parameters
     data_loc = r'C:\Local_Data\Segmentation_Alex\hx_gyroid_2'
     weights_loc = r'../../data/model_weights/UNet3D_SDF_16EL_n_class_10/UNet3D_SDF_16EL_n_class_10_lr[1e-05]_lrdc[1e-01]_bs4_save_200.pth'
@@ -351,8 +351,7 @@ def __visu_voxel_model_on_dir():
     plotter.add_legend(legend_entries, bcolor='white', face='circle', size=(0.2, 0.25), loc='lower right')
 
     plotter.show()
-
-
+    
 def __visu_train_result():
     weights_loc = r'../../data\model_weights\UNet3D_SDF_16EL_n_class_10_bln_5000\UNet3D_SDF_16EL_n_class_10_bln_5000_lr[1e-05]_lrdc[0.1]bs4_save_last.pth'
     data_loc = r'../data/datasets/ABC/ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2_samples_37273.torch'
@@ -505,7 +504,12 @@ def __visu_train_result():
 
 
 def main():
-   __eval_model_on_random_sample()
+    data_loc = r'C:\Local_Data\Segmentation_Alex\hx_gyroid_2'
+    weights_loc = r'../../data/model_weights/UNet3D_SDF_16EL_n_class_10/UNet3D_SDF_16EL_n_class_10_lr[1e-05]_lrdc[1e-01]_bs4_save_200.pth'
+    kernel_size = 16
+    padding = 4
+    n_classes = 10
+    __visu_mesh_model_on_dir(data_loc, weights_loc, kernel_size, padding, n_classes)
 
 if __name__=="__main__":
     main()

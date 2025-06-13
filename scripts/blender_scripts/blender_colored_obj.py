@@ -109,13 +109,14 @@ def color_faces_by_labels(obj, face_colors):
 for obj in bpy.data.objects:
     bpy.data.objects.remove(obj, do_unlink=True)
 # Load mesh
-id = "00001095"
-obj_path = f"C:/Local_Data/ABC/ABC_parsed_files/{id}/{id}.obj"
+test_id = "test_2"
+obj_path = r"H:\ABC_Demo\source" + "\\" + test_id + "\\" + test_id + ".obj"
+print(obj_path)
 obj = load_obj_simple(obj_path)
 
 # Load face colors
 
-color_map_path = r"C:\src\repos\PytorchDL\data\blender_export\color_map_learned.pkl"
+color_map_path = r"H:\ABC_Demo\blender" + "\\" + test_id + "_color_map.pkl"
 #color_map_path = r"C:\src\repos\PytorchDL\data\blender_export\color_map.pkl"
 
 # Load the color map

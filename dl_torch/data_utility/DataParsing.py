@@ -6,6 +6,17 @@ from utility.data_exchange import cppIO
 import numpy as np
 import yaml
 
+def read_job_file(job_file_name : str):
+
+    job_targets = []
+
+    with open(job_file_name, 'r') as file:
+        for line in file:
+            line = line.rstrip('\n')
+            job_targets.append(line)
+
+    return job_targets
+
 def clean_up_files(file_paths):
     for f in file_paths:
         if os.path.exists(f):
