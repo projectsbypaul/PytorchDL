@@ -198,17 +198,17 @@ def __data_class_contribution():
     # pip install pyarrow pandas
     df_statistics.to_parquet(os.path.join(save_dir,os.path.basename(segment_dir) + ".parquet"), engine='pyarrow', compression='snappy')
 
-def __histogramm_segmentation_samples():
-    # Load data
-    data_loc = r"../../data/training_statistics"
-    data_name = "UNet_Segmentation_sample"
+def __histogramm_segmentation_samples(val_result_loc :  str):
 
-    with open(os.path.join(data_loc, f"{data_name}.pkl"), "rb") as f:
+    with open(val_result_loc, "rb") as f:
         sample_result = pickle.load(f)
 
     df = pd.DataFrame(sample_result, columns=['Sample_ID', 'ABC_ID', 'Accuracy'])
 
-    df.to_csv(os.path.join(data_loc, f"{data_name}.csv"))
+    current_path = os.path.abspath(__file__)
+    path_without_ext = os.path.splitext(current_path)[0]
+
+    df.to_csv(path_without_ext + ".csv")
 
     sample_iou = np.array([item[2]*100 for item in sample_result])
 
@@ -250,7 +250,8 @@ def __histogramm_segmentation_samples():
 
 def main():
     # __balance_dataset()
-    __histogramm_segmentation_samples()
+    val_result_file = r'H:\ABC\ABC_Testing\val_seg.pkl'
+    __histogramm_segmentation_samples(val_result_file)
 
 if __name__ == "__main__":
     main()

@@ -202,8 +202,60 @@ def run_sanity_check_on_labels():
 
     plotter.show()
 
+def run_sanity_check_on_sdf_bins(bin_path):
+    sdf_segment = cppIOexcavator.load_segments_from_binary(bin_path)
+
+    max_val, min_val = 0, 0
+
+    grid_dim = sdf_segment[0].shape[0]
+
+    for segment in sdf_segment:
+        for i in range(grid_dim):
+            for j in range(grid_dim):
+                for k in range(grid_dim):
+                    entry = segment[i,j,k,]
+                    if entry > max_val:
+                        max_val = entry
+                    if entry < min_val:
+                        min_val = entry
+
+
+    return min_val, max_val
+
+def run_sanity_check_on_dir(dataset_path, result_path):
+    entry_names = os.listdir(dataset_path)
+    bin_array_names = [os.path.join(dataset_path, name, "segmentation_data_segments.bin") for name in entry_names]
+
+    results = []
+
+    for index, name in enumerate(bin_array_names):
+        min_val, max_val = run_sanity_check_on_sdf_bins(name)
+        if min_val >= -1 and max_val <= 1:
+            output = f"{entry_names[index]}: min: {min_val} >= -1; max: {max_val} <= 1: ==> PASSED"
+            print(output)
+            results.append(output)
+        else:
+            output = f"{entry_names[index]}: min: {min_val} !>= -1; max: {max_val} !<= 1: ==> FAILED"
+            print(output)
+            results.append(output)
+
+    # Define the output file path
+    output_file = os.path.join(dataset_path, result_path)
+
+    # Write results to file
+    with open(output_file, "w") as f:
+        for line in results:
+            f.write(line + "\n")
+
+    print(f"Results saved to {output_file}")
+
 def main():
-    run_sanity_check_on_labels()
+
+    dataset_path = r"H:\ABC\ABC_Datasets\Segmentation\train_ks_16_pad_4_bw_5_vs_adaptive_n3\ABC_chunk_01\ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n3"
+    result_path = r"H:\ABC\ABC_Datasets\Segmentation\sdf_sanity_check_results.txt"
+
+    run_sanity_check_on_dir(dataset_path, result_path)
+
 
 if __name__ == "__main__":
     main()
