@@ -205,7 +205,7 @@ def __histogramm_segmentation_samples(val_result_loc :  str):
 
     df = pd.DataFrame(sample_result, columns=['Sample_ID', 'ABC_ID', 'Accuracy'])
 
-    current_path = os.path.abspath(__file__)
+    current_path = os.path.abspath(val_result_loc)
     path_without_ext = os.path.splitext(current_path)[0]
 
     df.to_csv(path_without_ext + ".csv")

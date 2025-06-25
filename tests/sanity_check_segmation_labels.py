@@ -230,6 +230,7 @@ def run_sanity_check_on_dir(dataset_path, result_path):
 
     for index, name in enumerate(bin_array_names):
         min_val, max_val = run_sanity_check_on_sdf_bins(name)
+
         if min_val >= -1 and max_val <= 1:
             output = f"{entry_names[index]}: min: {min_val} >= -1; max: {max_val} <= 1: ==> PASSED"
             print(output)
