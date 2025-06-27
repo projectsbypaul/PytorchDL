@@ -13,6 +13,12 @@ SET "TARGET=H:\ABC\ABC_torch\ABC_training\train_1000000_ks_16_pad_4_bw_5_vs_adap
 SET "DATASET_NAME=batched_iter_02"
 SET "BATCH_COUNT=20"
 
+IF NOT EXIST "%TARGET%" (
+    echo Creating glob target directory: %TARGET%
+    MKDIR "%TARGET%"
+)
+
+
 
 call %VENV_PATH%
 

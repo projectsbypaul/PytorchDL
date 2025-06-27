@@ -229,14 +229,22 @@ def run_sanity_check_on_dir(dataset_path, result_path):
     results = []
 
     for index, name in enumerate(bin_array_names):
-        min_val, max_val = run_sanity_check_on_sdf_bins(name)
 
-        if min_val >= -1 and max_val <= 1:
-            output = f"{entry_names[index]}: min: {min_val} >= -1; max: {max_val} <= 1: ==> PASSED"
-            print(output)
-            results.append(output)
+        if os.path.exists(name):
+
+            min_val, max_val = run_sanity_check_on_sdf_bins(name)
+
+            if min_val >= -1 and max_val <= 1:
+                output = f"{entry_names[index]}: min: {min_val} >= -1; max: {max_val} <= 1: ==> PASSED"
+                print(output)
+                results.append(output)
+            else:
+                output = f"{entry_names[index]}: min: {min_val} !>= -1; max: {max_val} !<= 1: ==> FAILED"
+                print(output)
+                results.append(output)
+
         else:
-            output = f"{entry_names[index]}: min: {min_val} !>= -1; max: {max_val} !<= 1: ==> FAILED"
+            output = f"{entry_names[index]}: no data found ==> MISSING"
             print(output)
             results.append(output)
 
@@ -252,8 +260,8 @@ def run_sanity_check_on_dir(dataset_path, result_path):
 
 def main():
 
-    dataset_path = r"H:\ABC\ABC_Datasets\Segmentation\train_ks_16_pad_4_bw_5_vs_adaptive_n3\ABC_chunk_01\ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n3"
-    result_path = r"H:\ABC\ABC_Datasets\Segmentation\sdf_sanity_check_results.txt"
+    dataset_path = r"H:\ABC\ABC_Datasets\Segmentation\training_samples\train_1000000_ks_16_pad_4_bw_5_vs_adaptive_n3"
+    result_path = r"H:\ABC\ABC_Datasets\Segmentation\sdf_sanity_check_results_1f0_mio.txt"
 
     run_sanity_check_on_dir(dataset_path, result_path)
 
