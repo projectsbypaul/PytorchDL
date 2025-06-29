@@ -15,6 +15,13 @@ SET "OUTPUT_DIR=H:\ABC\ABC_torch\ABC_training\train_%SAMPLES%_ks_16_pad_4_bw_5_v
 SET "MIN_FILES=2"
 SET "N_THREADS=16"
 
+
+IF NOT EXIST "%OUTPUT_DIR%" (
+    echo Creating glob target directory: %OUTPUT_DIR%
+    MKDIR "%OUTPUT_DIR%"
+)
+
+
 call %VENV_PATH%
 
 FOR /L %%I IN (1,1,%N_THREADS%) DO (

@@ -26,6 +26,7 @@ def train_model(model,
     print(f"Train on {dataset_manager.get_subset_count()} Managed Dataset samples")
     print(f"Training samples {train_size}, Validation samples {val_size} ")
 
+
     model.to(device)
     run_name = (f"{model_name}"
                 f"_lr[{scheduler.get_last_lr()[0]}]"
@@ -64,9 +65,6 @@ def train_model(model,
                 epoch_train_acc += Custom_Metrics.voxel_accuracy(output, target)
                 train_batches += 1
 
-            if epoch == 0:
-                print(f"Allocated Memory: {torch.cuda.memory_allocated() / 1024 ** 2:.2f} MB")
-
             print(f"Epoch {epoch}: Run validation on subset {set_index}...")
             model.eval()
 
@@ -93,6 +91,8 @@ def train_model(model,
         writer.add_scalar("Accuracy/Train", avg_train_acc, epoch)
         writer.add_scalar("Loss/Val", avg_val_loss, epoch)
         writer.add_scalar("Accuracy/Val", avg_val_acc, epoch)
+
+        torch.cuda.empty_cache()
 
         if (epoch % backup_epoch) == 0 and model_weights_loc:
             backup_name = model_weights_loc.format(model_name=model_name, run_name=run_name, epoch=epoch)

@@ -59,19 +59,19 @@ class InteractiveDataset(Dataset):
 
     def get_train_loader(self, batch_size : int) -> DataLoader:
 
-        self.__train_loader = DataLoader(self.__train_dataset, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True)
+        self.__train_loader = DataLoader(self.__train_dataset, batch_size=batch_size, shuffle=True, num_workers=0, pin_memory=True)
 
         return self.__train_loader
 
     def get_test_loader(self, batch_size : int) -> DataLoader:
 
-        self.__test_loader = DataLoader(self.__test_dataset, batch_size=batch_size, shuffle=True, num_workers=4, pin_memory=True)
+        self.__test_loader = DataLoader(self.__test_dataset, batch_size=batch_size, shuffle=True, num_workers=0, pin_memory=True)
 
         return self.__test_loader
 
     def get_data_loader(self, batch_size : int) -> DataLoader:
 
-        self.__data_loader = DataLoader(self.data, batch_size=batch_size, shuffle=False, num_workers=4, pin_memory=True)
+        self.__data_loader = DataLoader(self.data, batch_size=batch_size, shuffle=False, num_workers=0, pin_memory=True)
 
         return self.__data_loader
 

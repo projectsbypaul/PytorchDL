@@ -9,15 +9,15 @@ REM Arg for CLI
 SET "MODULE=train_utility"
 SET "MODE=train_UNet3D"
 REM Args for training script
-SET "MODEL_NAME=UNet3D_SDF_16EL_n_class_10_multiset"
-SET "DATASET_DIR=H:\ABC\ABC_torch\ABC_chunk_00\batched_data_ks_16_pad_4_bw_5_vs_adaptive_n2_testing"
+SET "MODEL_NAME=UNet3D_SDF_16EL_n_class_10_multiset_1f0_mio"
+SET "DATASET_DIR=H:\ABC\ABC_torch\ABC_training\train_1000000_ks_16_pad_4_bw_5_vs_adaptive_n3\batch_iter_01"
 SET "MODEL_WEIGHTS_LOC=C:\src\repos\PytorchDL\data\model_weights\{model_name}\{run_name}_save_{epoch}.pth"
 SET "EPOCHS=200"
-SET "BACKUP_EP=100"
-SET "BATCH_SIZE=4"
+SET "BACKUP_EP=10"
+SET "BATCH_SIZE=16"
 SET "LR=1e-4"
 SET "DECAY_ORDER=1e-1"
-SET "SPLIT=0.8"
+SET "SPLIT=0.9"
 
 call %VENV_PATH%
 

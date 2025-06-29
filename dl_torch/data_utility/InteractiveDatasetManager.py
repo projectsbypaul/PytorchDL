@@ -86,6 +86,7 @@ class InteractiveDatasetManager:
 
             self.__active_set = InteractiveDataset.load_dataset(subset_path)
             self.__active_set.set_split(self.__global_split)
+            self.__active_set.split_dataset()
 
 def main() -> None:
     managed_dir = r"H:\ABC\ABC_torch\ABC_chunk_00\batched_data_ks_16_pad_4_bw_5_vs_adaptive_n2_testing"

@@ -8,10 +8,10 @@ SET "MAIN_PY=C:\src\repos\PytorchDL\main.py"
 REM Args for main scripts
 SET "MODULE=data_utility"
 SET "MODE=batch_subsets"
-SET "SOURCE=H:\ABC\ABC_torch\ABC_training\train_1000000_ks_16_pad_4_bw_5_vs_adaptive_n3\batch_iter_01"
-SET "TARGET=H:\ABC\ABC_torch\ABC_training\train_1000000_ks_16_pad_4_bw_5_vs_adaptive_n3\batch_iter_02"
-SET "DATASET_NAME=batched_iter_02"
-SET "BATCH_COUNT=20"
+SET "SOURCE=H:\ABC\ABC_torch\ABC_training\train_1000000_ks_16_pad_4_bw_5_vs_adaptive_n3\subset"
+SET "TARGET=H:\ABC\ABC_torch\ABC_training\train_1000000_ks_16_pad_4_bw_5_vs_adaptive_n3\batch_iter_01"
+SET "DATASET_NAME=batch_iter_01"
+SET "BATCH_COUNT=40"
 
 IF NOT EXIST "%TARGET%" (
     echo Creating glob target directory: %TARGET%
