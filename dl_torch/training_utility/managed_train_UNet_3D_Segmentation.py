@@ -48,7 +48,7 @@ def train_model(model,
             train_loader = dataset_manager.get_active_train_loader()
             val_loader = dataset_manager.get_active_test_loader()
 
-            print(f"Epoch {epoch}: Loading subset {set_index}, training...")
+            print(f"Epoch {epoch}: Loaded subset {set_index}, training...")
             model.train()
 
             for data, target in train_loader:
