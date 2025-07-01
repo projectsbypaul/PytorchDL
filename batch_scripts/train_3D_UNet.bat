@@ -3,8 +3,8 @@ REM Batch script to launch python
 REM --- Configuration ---
 
 REM Path to your main entrypoint and venv  (using relative path from script location)
-SET "VENV_PATH=C:\src\repos\PytorchDL\.venv\Scripts\activate.bat"
-SET "MAIN_PY=C:\src\repos\PytorchDL\main.py"
+SET "VENV_PATH=C:\Users\pschuster\source\repos\PytorchDL\.venv\Scripts\activate.bat"
+SET "MAIN_PY=C:\Users\pschuster\source\repos\PytorchDL\main.py"
 REM Arg for CLI
 SET "MODULE=train_utility"
 SET "MODE=train_UNet3D"
