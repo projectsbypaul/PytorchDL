@@ -109,26 +109,22 @@ def color_faces_by_labels(obj, face_colors):
 # Clear all objects
 for obj in bpy.data.objects:
     bpy.data.objects.remove(obj, do_unlink=True)
-# Load mesh
-# Load paths from file
-# Get the directory of the current script
+
+
+# Resolve blender_paths.txt location relative to this script
 script_dir = os.path.dirname(os.path.abspath(__file__))
-
-# Go up 3 levels to the project root
-project_root = os.path.abspath(os.path.join(script_dir, "..", "..", ".."))
-
-# Build path to blender_paths.txt in output/
+project_root = os.path.abspath(os.path.join(script_dir, "..", "..", "..", ".."))
 paths_file = os.path.join(project_root, "output", "blender_paths.txt")
 
-# Load OBJ path and color map path
+# Read paths
 with open(paths_file, "r") as f:
     lines = f.readlines()
 
 obj_path = lines[0].strip()
 color_map_path = lines[1].strip()
 
-print("Loaded mesh path:", obj_path)
-print("Loaded color map:", color_map_path)
+print("Loaded mesh:", obj_path)
+print("Loaded colormap:", color_map_path)
 
 # Load the mesh
 obj = load_obj_simple(obj_path)
