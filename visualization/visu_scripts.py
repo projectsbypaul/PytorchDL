@@ -4,6 +4,7 @@ import pickle
 from dl_torch.models.UNet3D_Segmentation import UNet3D_16EL
 from utility.data_exchange import cppIOexcavator
 import numpy as np
+import os
 
 def visu_mesh_label(data_loc : str, save_loc : str):
 
@@ -133,6 +134,14 @@ def visu_mesh_model_on_dir(data_loc : str,weights_loc : str, save_loc : str, ker
     # Now save it
     with open(save_loc, "wb") as f:
         pickle.dump(face_colors, f)
+
+    # Derive .txt path from save_loc using os.path
+    txt_save_path = os.path.splitext(save_loc)[0] + ".txt"
+
+    # Write face_index: surface_type mapping to the .txt file
+    with open(txt_save_path, "w") as f_txt:
+        for idx, label in enumerate(ftm_prediction):
+            f_txt.write(f"{idx}: {label}\n")
 
     # ftm_ground_truth = cppIO.read_type_map_from_binary(os.path.join(data_loc, "FaceTypeMap.bin"))
 
