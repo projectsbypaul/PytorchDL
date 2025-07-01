@@ -2,6 +2,7 @@ import bpy
 import random
 from pathlib import Path
 import pickle
+import os
 
 def create_legend(color_label_map, start_location=(0, 0, 0), spacing_x=40, spacing_y=10, num_columns=3):
     """
@@ -110,15 +111,24 @@ for obj in bpy.data.objects:
     bpy.data.objects.remove(obj, do_unlink=True)
 # Load mesh
 # Load paths from file
-paths_file = r"H:\ABC_Demo\output\blender_paths.txt"
+# Get the directory of the current script
+script_dir = os.path.dirname(os.path.abspath(__file__))
+
+# Go up 3 levels to the project root
+project_root = os.path.abspath(os.path.join(script_dir, "..", "..", ".."))
+
+# Build path to blender_paths.txt in output/
+paths_file = os.path.join(project_root, "output", "blender_paths.txt")
+
+# Load OBJ path and color map path
 with open(paths_file, "r") as f:
     lines = f.readlines()
 
 obj_path = lines[0].strip()
 color_map_path = lines[1].strip()
 
-print(f"OBJ path: {obj_path}")
-print(f"Color map path: {color_map_path}")
+print("Loaded mesh path:", obj_path)
+print("Loaded color map:", color_map_path)
 
 # Load the mesh
 obj = load_obj_simple(obj_path)
