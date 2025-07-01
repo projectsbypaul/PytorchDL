@@ -1,31 +1,19 @@
 import bpy
-import random
-from pathlib import Path
 import pickle
 import os
+import sys
 
 def create_legend(color_label_map, start_location=(0, 0, 0), spacing_x=40, spacing_y=10, num_columns=3):
-    """
-    Create a legend using colored spheres and text, arranged in columns with custom spacing.
-
-    color_label_map: dict mapping label names or indices to RGBA tuples
-    start_location: (x, y, z) start point
-    spacing_x: horizontal spacing between columns
-    spacing_y: vertical spacing between rows
-    num_columns: number of columns in the legend
-    """
     x_start, y_start, z = start_location
     items = list(color_label_map.items())
-    num_rows = (len(items) + num_columns - 1) // num_columns  # ceil division
+    num_rows = (len(items) + num_columns - 1) // num_columns
 
     for i, (label, color) in enumerate(items):
         row = i % num_rows
         col = i // num_rows
-
         x = x_start + col * spacing_x
         y = y_start - row * spacing_y
 
-        # Create sphere
         bpy.ops.mesh.primitive_uv_sphere_add(radius=3, location=(x, y + 2.5, z))
         sphere = bpy.context.object
         mat = bpy.data.materials.new(name=f"LegendColor_{label}")
@@ -34,7 +22,6 @@ def create_legend(color_label_map, start_location=(0, 0, 0), spacing_x=40, spaci
         bsdf.inputs['Base Color'].default_value = color
         sphere.data.materials.append(mat)
 
-        # Create text
         bpy.ops.object.text_add(location=(x + 5, y, z))
         text_obj = bpy.context.object
         text_obj.data.body = str(label)
@@ -43,7 +30,6 @@ def create_legend(color_label_map, start_location=(0, 0, 0), spacing_x=40, spaci
 def load_obj_simple(filepath):
     verts = []
     faces = []
-
     with open(filepath, 'r') as f:
         for line in f:
             if line.startswith('v '):
@@ -51,103 +37,91 @@ def load_obj_simple(filepath):
                 verts.append((float(x), float(y), float(z)))
             elif line.startswith('f '):
                 parts = line.split()[1:]
-                face = [int(p.split('/')[0]) - 1 for p in parts]  # OBJ is 1-indexed
+                face = [int(p.split('/')[0]) - 1 for p in parts]
                 faces.append(face)
 
     mesh = bpy.data.meshes.new("ImportedMesh")
     mesh.from_pydata(verts, [], faces)
     mesh.update()
-
     obj = bpy.data.objects.new("ImportedObj", mesh)
     bpy.context.collection.objects.link(obj)
-
     return obj
 
 def color_faces_by_labels(obj, face_colors):
     mesh = obj.data
     mesh.materials.clear()
-
     color_to_material = {}
 
     for i, face in enumerate(mesh.polygons):
-        color = face_colors[i]  # Now color is RGBA tuple
-
-        color_key = tuple(color)  # Make sure it's hashable
+        color = face_colors[i]
+        color_key = tuple(color)
         if color_key not in color_to_material:
-            # Create material
             mat = bpy.data.materials.new(name=f"color_{i}")
             mat.use_nodes = True
-
-            # Get node tree
             nodes = mat.node_tree.nodes
             links = mat.node_tree.links
-
-            # Clear existing nodes
             nodes.clear()
-
-            # Create nodes
             output_node = nodes.new(type="ShaderNodeOutputMaterial")
             output_node.location = (300, 0)
-
             bsdf_node = nodes.new(type="ShaderNodeBsdfPrincipled")
             bsdf_node.location = (0, 0)
-
-            # Assign specific color
             bsdf_node.inputs["Base Color"].default_value = color
-
-            # Connect BSDF to Output
             links.new(bsdf_node.outputs["BSDF"], output_node.inputs["Surface"])
-
-            # Add material to object
             mesh.materials.append(mat)
             color_to_material[color_key] = len(mesh.materials) - 1
-
-        # Assign material to face
         face.material_index = color_to_material[color_key]
+
 # --- SCRIPT ENTRY POINT ---
 
-# Clear all objects
-for obj in bpy.data.objects:
-    bpy.data.objects.remove(obj, do_unlink=True)
+# Clear scene
+bpy.ops.object.select_all(action='SELECT')
+bpy.ops.object.delete()
 
+# Get path from CLI argument
+paths_file = None
+if "--" in sys.argv:
+    idx = sys.argv.index("--")
+    if idx + 1 < len(sys.argv):
+        paths_file = sys.argv[idx + 1]
 
-# Resolve blender_paths.txt location relative to this script
-script_dir = os.path.dirname(os.path.abspath(__file__))
-project_root = os.path.abspath(os.path.join(script_dir, "..", "..", "..", ".."))
-paths_file = os.path.join(project_root, "output", "blender_paths.txt")
+if not paths_file or not os.path.isfile(paths_file):
+    print(f"[ERROR] blender_paths.txt not found or not provided.")
+    sys.exit(1)
 
-# Read paths
 with open(paths_file, "r") as f:
-    lines = f.readlines()
+    lines = [line.strip() for line in f.readlines()]
 
-obj_path = lines[0].strip()
-color_map_path = lines[1].strip()
+if len(lines) < 2:
+    print(f"[ERROR] blender_paths.txt must contain 2 lines.")
+    sys.exit(1)
+
+obj_path, color_map_path = lines
+
+if not os.path.isfile(obj_path):
+    print(f"[ERROR] Mesh file not found: {obj_path}")
+    sys.exit(1)
+if not os.path.isfile(color_map_path):
+    print(f"[ERROR] Color map file not found: {color_map_path}")
+    sys.exit(1)
 
 print("Loaded mesh:", obj_path)
-print("Loaded colormap:", color_map_path)
+print("Loaded color map:", color_map_path)
 
-# Load the mesh
 obj = load_obj_simple(obj_path)
 
-# Load the color map
 with open(color_map_path, "rb") as f:
     face_colors = pickle.load(f)
 
-# Load face colors
-with open(color_map_path, "rb") as f:
-    face_colors = pickle.load(f)
-# Assign color by labels
 color_faces_by_labels(obj, face_colors)
 
-# Optional: switch to material preview mode
+# Set to Material Preview
 for area in bpy.context.screen.areas:
     if area.type == 'VIEW_3D':
         for space in area.spaces:
             if space.type == 'VIEW_3D':
                 space.shading.type = 'MATERIAL'
-                
 
-# Map colors to labels (you can define your own)
+# Optional legend
 color_label_map = {
     'BSpline':   (138, 43, 226, 1.0),
     'Cone':      (0, 0, 255, 1.0),
@@ -159,13 +133,9 @@ color_label_map = {
     'Sphere':    (128, 0, 0, 1.0),
     'Torus':     (0, 255, 255, 1.0),
     'Void':      (0, 0, 0, 0.0),
-    # Add as needed
 }
-
 color_label_map_normalized = {
     label: tuple(c / 255 if i < 3 else c for i, c in enumerate(rgba))
     for label, rgba in color_label_map.items()
 }
-
-# Then call:
 create_legend(color_label_map_normalized, start_location=(-50, -50, 0))
