@@ -103,9 +103,9 @@ def validate_segmentation_model(val_dataset_loc : str, weights_loc : str, save_l
 
 
 def main():
-    val_dataset_path = r"H:\ABC\ABC_Datasets\Segmentation\validation_samples\val_500_ks_16_pad_4_bw_5_vs_adaptive_n3"
-    weights_loc = r'C:\src\repos\PytorchDL\data\model_weights\UNet3D_SDF_16EL_n_class_10\UNet3D_SDF_16EL_n_class_10_lr[1e-05]_lrdc[0.1]bs4_save_last.pth'
-    save_file = r"H:\ABC\ABC_Testing\val_seg.pkl"
+    val_dataset_path = r"H:\ABC\ABC_Datasets\Segmentation\validation_samples\val_1000_ks_16_pad_4_bw_5_vs_adaptive_n3"
+    weights_loc = r'C:\src\repos\PytorchDL\data\model_weights\UNet3D_SDF_16EL_n_class_10_multiset_1f0_mio\UNet3D_SDF_16EL_n_class_10_multiset_1f0_mio_lr[0.0001]_lrdc[1e-01]_bs16_save_110.pth'
+    save_file = r"H:\ABC\ABC_Testing\val_UNet3D_SDF_16EL_n_class_10_multiset_1f0_mio_lr[0.0001]_lrdc[1e-01]_bs16_save_110.pkl"
     kernel_size = 16
     padding = 4
     validate_segmentation_model(val_dataset_path, weights_loc, save_file,  kernel_size, padding)

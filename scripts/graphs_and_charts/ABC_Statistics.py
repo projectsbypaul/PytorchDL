@@ -4,7 +4,7 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from scipy.stats import mode
-from utility.data_exchange import cppIO
+from utility.data_exchange import cppIOexcavator
 from matplotlib.ticker import LogLocator
 from matplotlib.ticker import FixedLocator, FuncFormatter
 
@@ -64,12 +64,11 @@ def create_plot_dimensions():
     plt.tight_layout()
     plt.show()
 
-def create_plot_surf_types():
+def create_plot_surf_types(data_dir : str):
     #Section:
     #Data Parsing
 
-    data_dir = r"C:\Local_Data\ABC\ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2"
-    f_name = "TypeCounts.bin"
+    f_name = "segmentation_data.dat"
 
     sub_dirs = os.listdir(data_dir)
 
@@ -80,10 +79,16 @@ def create_plot_surf_types():
         if os.path.exists(name):
             targets.append(name)
 
-    raw_type_dicts = [cppIO.read_type_counts_from_binary(file) for file in targets]
-    key_collection = []
+    raw_type_dicts = []
+    for file in targets:
+        print(f"reading dict from {os.path.dirname(file)}")
+        type_dict = cppIOexcavator.parse_dat_file(file)['TYPE_COUNT_MAP']
+        raw_type_dicts.append(type_dict)
 
-    for type_dict in raw_type_dicts:
+
+    key_collection = []
+    for index, type_dict in enumerate(raw_type_dicts):
+        print(f"extracting dict keys from {os.path.dirname(targets[index])}")
         for key in type_dict.keys():
             key_collection.append(key)
 
@@ -175,7 +180,8 @@ def create_plot_surf_types():
 
 
 def main():
-    create_plot_surf_types()
+    target = r"H:\ABC\ABC_Datasets\Segmentation\training_samples\train_1000000_ks_16_pad_4_bw_5_vs_adaptive_n3"
+    create_plot_surf_types(target)
 
 if __name__ == "__main__":
     main()

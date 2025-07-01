@@ -9,6 +9,7 @@ import os
 from  dl_torch.data_utility.HelperFunctionsABC import __get_ABC_bin_array_from_segment_dir, __get_highest_count_class
 from utility.data_exchange import cppIO
 from dl_torch.data_utility import DataParsing
+from scipy import stats
 
 def __balance_dataset():
 
@@ -211,6 +212,8 @@ def __histogramm_segmentation_samples(val_result_loc :  str):
     df.to_csv(path_without_ext + ".csv")
 
     sample_iou = np.array([item[2]*100 for item in sample_result])
+    rounded_data = np.round(sample_iou, 2)
+    total_samples = len(sample_iou)
 
     # Settings
     x_limit = 100
@@ -231,15 +234,24 @@ def __histogramm_segmentation_samples(val_result_loc :  str):
     # Calculate statistics
     mean_val = np.mean(sample_iou)
     median_val = np.median(sample_iou)
-    mode_val = mode(sample_iou, keepdims=True)[0][0]
+
+    mode_result = stats.mode(rounded_data, keepdims=True)
+    mode_val = mode_result.mode[0]
+    mode_count = mode_result.count[0]
+
+    # Calculate percentiles
+    p25 = np.percentile(sample_iou, 25)
+    p75 = np.percentile(sample_iou, 75)
 
     # Add vertical lines
     ax.axvline(mean_val, color='red', linestyle='dashed', linewidth=1.5, label=f'Mean: {mean_val:.2f}')
-    ax.axvline(median_val, color='green', linestyle='dotted', linewidth=1.5, label=f'Median: {median_val:.2f}')
     ax.axvline(mode_val, color='blue', linestyle='solid', linewidth=1.5, label=f'Mode: {mode_val:.2f}')
+    ax.axvline(median_val, color='green', linestyle='dotted', linewidth=1.5, label=f'Median: {median_val:.2f}')
+    ax.axvline(p25, color='orange', linestyle='dashdot', linewidth=1.5, label=f'25th Percentile: {p25:.2f}')
+    ax.axvline(p75, color='purple', linestyle='dashdot', linewidth=1.5, label=f'75th Percentile: {p75:.2f}')
 
     # Titles and limits
-    ax.set_title('Histogram of IoU on ABC samples')
+    ax.set_title(f'Histogram of IoU on ABC samples\nTotal samples: {total_samples}')
     ax.set_xlim(0, x_limit)
     ax.set_xlabel("IoU Value")
     ax.set_ylabel("Frequency")
@@ -250,7 +262,7 @@ def __histogramm_segmentation_samples(val_result_loc :  str):
 
 def main():
     # __balance_dataset()
-    val_result_file = r'H:\ABC\ABC_Testing\val_seg.pkl'
+    val_result_file = r'H:\ABC\ABC_Testing\val_UNet3D_SDF_16EL_n_class_10_multiset_1f0_mio_lr[0.0001]_lrdc[1e-01]_bs16_save_110.pkl'
     __histogramm_segmentation_samples(val_result_file)
 
 if __name__ == "__main__":
