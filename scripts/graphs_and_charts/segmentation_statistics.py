@@ -201,6 +201,10 @@ def __data_class_contribution():
 
 def __histogramm_segmentation_samples(val_result_loc :  str):
 
+    # create model signature
+    model_name = os.path.basename(val_result_loc)
+    model_name, _ = os.path.splitext(model_name)
+
     with open(val_result_loc, "rb") as f:
         sample_result = pickle.load(f)
 
@@ -214,6 +218,8 @@ def __histogramm_segmentation_samples(val_result_loc :  str):
     sample_iou = np.array([item[2]*100 for item in sample_result])
     rounded_data = np.round(sample_iou, 2)
     total_samples = len(sample_iou)
+
+
 
     # Settings
     x_limit = 100
@@ -251,18 +257,21 @@ def __histogramm_segmentation_samples(val_result_loc :  str):
     ax.axvline(p75, color='purple', linestyle='dashdot', linewidth=1.5, label=f'75th Percentile: {p75:.2f}')
 
     # Titles and limits
-    ax.set_title(f'Histogram of IoU on ABC samples\nTotal samples: {total_samples}')
+    ax.set_title(f'Histogram of IoU on ABC samples\nTotal samples: {total_samples} \n{model_name}')
     ax.set_xlim(0, x_limit)
     ax.set_xlabel("IoU Value")
     ax.set_ylabel("Frequency")
     ax.legend()
+
+
 
     plt.tight_layout()
     plt.show()
 
 def main():
     # __balance_dataset()
-    val_result_file = r'H:\ABC\ABC_Testing\val_UNet3D_SDF_16EL_n_class_10_multiset_1f0_mio_lr[0.0001]_lrdc[1e-01]_bs16_save_110.pkl'
+    #TO DO: Add tag for model name
+    val_result_file = r'H:\ABC\ABC_Testing\val_UNet3D_SDF_16EL_n_class_10_multiset_1f0_mio_lr[0.0001]_lrdc[1e-01]_bs16_save_20.pkl'
     __histogramm_segmentation_samples(val_result_file)
 
 if __name__ == "__main__":

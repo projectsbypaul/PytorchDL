@@ -17,7 +17,7 @@ SET "MODEL_WEIGHTS_LOC=C:\src\repos\PytorchDL\data\model_weights\{model_name}\{r
 SET "EPOCHS=200"
 SET "BACKUP_EP=10"
 SET "BATCH_SIZE=16"
-SET "LR=1e-4"
+SET "LR=1e-4"pi
 SET "DECAY_ORDER=1e-1"
 SET "SPLIT=0.9"
 
