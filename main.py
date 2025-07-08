@@ -52,6 +52,7 @@ def main():
             print("main.py data_utility help")
             print("main.py data_utility create_subsets <job_file> <source_dir> <target_dir> <n_min_files>")
             print("main.py data_utility batch_subsets <source_dir> <target_dir> <dataset_name> <batch_count>")
+            print("main.py data_utility torch_to_hdf5 <torch_dir> <out_file>")
             sys.exit(0)
         elif args.mode == 'create_subsets':
             try:
@@ -80,6 +81,18 @@ def main():
             # Replace this with your actual function call
             RunABCHelperFunctions.run_batch_ABC_sub_Datasets(
                 source_dir, target_dir, dataset_name, batch_count
+            )
+        elif args.mode == 'torch_to_hdf5':
+            try:
+                torch_dir: str = args.arg0
+                out_file: str = args.arg1
+            except (TypeError, ValueError):
+                print("[ERROR] Invalid or missing arguments for 'create_subsets'.")
+                p_data_utility.print_help()
+                sys.exit(1)
+            # Replace this with your actual function call
+            RunABCHelperFunctions.run_torch_to_hdf5(
+                torch_dir, out_file
             )
         else:
             print("[ERROR] Invalid mode for data_utility.")
@@ -115,11 +128,18 @@ def main():
 
     elif args.module == 'train_utility':
         if args.mode == 'help' or args.arg0 is None:
-          print("Usage:\n")
-          print("")
-          print("main.py train_utility help")
-          print("main.py train_utility train_UNet3D <model_name> <dataset_dir> <model_weights_loc> <epoch> <backup_epochs> <batch_size> <lr> <decay_order> <split>")
-          sys.exit(0)
+            print("Usage:\n")
+            print("  main.py train_utility help")
+            print()
+            print("  main.py train_utility train_UNet3D \\")
+            print("      <model_name> <dataset_dir> <model_weights_loc> <epoch> \\")
+            print("      <backup_epochs> <batch_size> <lr> <decay_order> <split>")
+            print()
+            print("  main.py train_utility train_hdf5_UNet3D \\")
+            print("      <model_name> <hdf5_path> <model_weights_loc> <epoch> \\")
+            print("      <backup_epochs> <batch_size> <lr> <decay_order> <split> \\")
+            print("      <use_amp> <val_batch_factor> <workers>")
+            sys.exit(0)
         elif args.mode == 'train_UNet3D':
             try:
                 model_name : str = args.arg0
@@ -141,6 +161,32 @@ def main():
             RunTrainingUtility.run_train_UNet_3D_Segmentation(
                 model_name, dataset_dir, model_weights_loc, epoch, backup_epochs, batch_size, lr, decay_order, split
             )
+        elif args.mode == 'train_hdf5_UNet3D':
+            try:
+                model_name: str = args.arg0
+                hdf5_path: str = args.arg1
+                model_weights_loc: str = args.arg2
+                epoch: int = int(args.arg3)
+                backup_epochs: int = int(args.arg4)
+                batch_size: int = int(args.arg5)
+                lr: float = float(args.arg6)
+                decay_order: float = float(args.arg7)
+                split: float = float(args.arg8)
+                use_amp: bool = bool(args.arg9)
+                val_batch_factor: int = int(args.arg10)
+                workers: int = int(args.arg11)
+
+            except (TypeError, ValueError):
+                print("[ERROR] Invalid or missing arguments for 'create_subsets'.")
+                p_data_utility.print_help()
+                sys.exit(1)
+
+            # Replace this with your actual function call
+            RunTrainingUtility.run_hdf5_train_UNet_3D_Segmentation(
+            model_name, hdf5_path, model_weights_loc, epoch, backup_epochs, batch_size,
+            lr, decay_order, split, use_amp, val_batch_factor, workers
+        )
+
         else:
             print("[ERROR] Invalid mode for data_utility.")
             p_data_utility.print_help()

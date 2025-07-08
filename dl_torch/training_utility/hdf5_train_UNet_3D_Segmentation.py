@@ -11,6 +11,7 @@ from dl_torch.data_utility.HDF5Dataset import HDF5Dataset
 from tqdm import tqdm
 from torch.amp import autocast, GradScaler
 import time
+import platform
 
 
 def log_cuda_status():
@@ -32,16 +33,17 @@ def train_model_hdf_amp(model,
                     num_epochs=200,
                     model_weights_loc: str = None,
                     split: float = 0.9,
-                    batch_size: int = 16):
+                    batch_size: int = 16,
+                    val_batch_factor : int = 1,
+                    workers: int = 1):
 
     total_size = len(dataset)
     train_size = int(split * total_size)
     val_size = total_size - train_size
     train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
 
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=14, pin_memory=True)
-    val_batch_factor = 4
-    val_loader = DataLoader(val_dataset, batch_size=batch_size * val_batch_factor, shuffle=False, num_workers=14, pin_memory=True)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=workers, pin_memory=True)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size * val_batch_factor, shuffle=False, num_workers=workers, pin_memory=True)
 
     print(f"Train size: {train_size}, Val size: {val_size}")
     model.to(device)
@@ -117,7 +119,6 @@ def train_model_hdf_amp(model,
             torch.save(model.state_dict(), backup_name)
 
         scheduler.step()
-
         print(f"Epoch duration: {time.time() - epoch_start:.2f} seconds")
 
     writer.close()
@@ -136,16 +137,17 @@ def train_model_hdf(model,
                     num_epochs=200,
                     model_weights_loc: str = None,
                     split: float = 0.9,
-                    batch_size: int = 16):
+                    batch_size: int = 16,
+                    val_batch_factor: int = 1,
+                    workers: int = 1):
 
     total_size = len(dataset)
     train_size = int(split * total_size)
     val_size = total_size - train_size
     train_dataset, val_dataset = random_split(dataset, [train_size, val_size])
 
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=14, pin_memory=True)
-    val_batch_factor = 4
-    val_loader = DataLoader(val_dataset, batch_size=batch_size*val_batch_factor, shuffle=False, num_workers=14, pin_memory=True)
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=workers, pin_memory=True)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size*val_batch_factor, shuffle=False, num_workers=workers, pin_memory=True)
 
     print(f"Train size: {train_size}, Val size: {val_size}")
     model.to(device)
@@ -159,6 +161,7 @@ def train_model_hdf(model,
     writer = SummaryWriter(f"../training_utility/runs/{run_name}")
 
     for epoch in range(num_epochs):
+        epoch_start = time.time()
         model.train()
         epoch_train_loss, epoch_train_acc = 0.0, 0.0
 
@@ -211,6 +214,7 @@ def train_model_hdf(model,
             torch.save(model.state_dict(), backup_name)
 
         scheduler.step()
+        print(f"Epoch duration: {time.time() - epoch_start:.2f} seconds")
 
     writer.close()
     print("Finished Training")
@@ -225,7 +229,9 @@ def training_routine_hdf5(model_name : str,
                           lr,
                           decay_order,
                           split,
-                          use_amp=False):
+                          use_amp: bool =False,
+                          val_batch_factor: int = 1,
+                          workers: int = 1):
     # Model setup
     model = UNet3D_16EL(in_channels=1, out_channels=10)
     dataset = HDF5Dataset(hdf5_path)
@@ -252,7 +258,9 @@ def training_routine_hdf5(model_name : str,
                      epochs,
                      model_weights_loc,
                      split,
-                     batch_size)
+                     batch_size,
+                     val_batch_factor,
+                     workers)
 
     run_name = f"{model_name}_lr[{lr}]_lrdc[{decay_order}]bs{batch_size}"
     model_save_name = model_weights_loc.format(model_name=model_name, run_name=run_name, epoch="last")
@@ -261,11 +269,11 @@ def training_routine_hdf5(model_name : str,
 def main():
     print(torch.__version__)
 
-    hdf5_path = r"H:\ABC\ABC_torch\ABC_training\train_1f0_mio_ks_16_pad_4_bw_5_vs_adaptive_n3\dataset.hdf5"
+    hdf5_path = r"H:\ABC\ABC_torch\ABC_training\train_250k_ks_16_pad_4_bw_5_vs_adaptive_n3\dataset.hdf5"
     model_weights_loc = "../../data/model_weights/{model_name}/{run_name}_save_{epoch}.pth"
 
 
-    model_name = "UNet3D_SDF_HDF5_workers_14_1f0_mio_AMP"
+    model_name = "UNet3D_SDF_HDF5_workers_14_250k_AMP"
     training_routine_hdf5(model_name,
                           hdf5_path,
                           model_weights_loc,
@@ -275,11 +283,11 @@ def main():
                           lr=1e-4,
                           decay_order=1e-1,
                           split=0.9,
-                          use_amp=True)
+                          use_amp=True,
+                          val_batch_factor=1,
+                          workers = 14)
 
-
-
-    model_name = "UNet3D_SDF_HDF5_workers_14_1f0_mio"
+    model_name = "UNet3D_SDF_HDF5_workers_14_250k"
 
     training_routine_hdf5(model_name,
                           hdf5_path,
@@ -289,7 +297,10 @@ def main():
                           batch_size=16,
                           lr=1e-4,
                           decay_order=1e-1,
-                          split=0.9)
+                          split=0.9,
+                          use_amp=False,
+                          val_batch_factor=1,
+                          workers=14)
 
 
 if __name__ == "__main__":

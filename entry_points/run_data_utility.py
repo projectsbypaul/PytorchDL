@@ -1,4 +1,5 @@
 from dl_torch.data_utility import HelperFunctionsABC
+from dl_torch.data_utility.HDF5Dataset import HDF5Dataset
 
 class RunABCHelperFunctions:
     @staticmethod
@@ -10,6 +11,11 @@ class RunABCHelperFunctions:
     def run_batch_ABC_sub_Datasets(source_dir : str, target_dir: str , dataset_name : str, batch_count : int):
         HelperFunctionsABC.batch_ABC_sub_Datasets(source_dir, target_dir, dataset_name, batch_count)
         return 0
+
+    @staticmethod
+    def run_torch_to_hdf5(torch_dir: str, out_file: str):
+       HDF5Dataset.convert_pt_to_hdf5(torch_dir, out_file)
+       return 0
 
 def main():
     pass
