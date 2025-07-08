@@ -103,12 +103,21 @@ def validate_segmentation_model(val_dataset_loc : str, weights_loc : str, save_l
 
 
 def main():
-    val_dataset_path = r"H:\ABC\ABC_Datasets\Segmentation\validation_samples\val_1000_ks_16_pad_4_bw_5_vs_adaptive_n3"
-    weights_loc = r'C:\Users\pschuster\source\repos\PytorchDL\data\model_weights\UNet3D_SDF_16EL_n_class_10_multiset_1f0_mio\UNet3D_SDF_16EL_n_class_10_multiset_1f0_mio_lr[0.0001]_lrdc[1e-01]_bs16_save_20.pth'
-    save_file = r"H:\ABC\ABC_Testing\val_UNet3D_SDF_16EL_n_class_10_multiset_1f0_mio_lr[0.0001]_lrdc[1e-01]_bs16_save_20.pkl"
+    # w_loc_0 = r"H:\ABC\ABC_torch\temp_models\UNet3D_SDF_16EL_n_class_10_multiset_250k\UNet3D_SDF_16EL_n_class_10_multiset_250k_lr[0.0001]_lrdc[1e-01]_bs16_save_0.pth"
+    w_loc_1 = r"H:\ABC\ABC_torch\temp_models\UNet3D_SDF_16EL_n_class_10_multiset_1f0_mio\UNet3D_SDF_16EL_n_class_10_multiset_1f0_mio_lr[0.0001]_lrdc[1e-01]_bs16_save_90.pth"
+
+    w_loc = [w_loc_1]
+
+    save_loc = r"H:\ABC\ABC_statistics\val_segmentation\val_sample_2500"
     kernel_size = 16
     padding = 4
-    validate_segmentation_model(val_dataset_path, weights_loc, save_file,  kernel_size, padding)
+    val_dataset_path = r"H:\ABC\ABC_Datasets\Segmentation\validation_samples\val_2500_ks_16_pad_4_bw_5_vs_adaptive_n3"
+
+    for w in w_loc:
+        save_name = os.path.splitext(w)[0] + ".pkl"
+        save_name = os.path.basename(save_name)
+        save_name = os.path.join(save_loc, save_name)
+        validate_segmentation_model(val_dataset_path, w, save_name, kernel_size, 4)
 
 
 if __name__ == "__main__":

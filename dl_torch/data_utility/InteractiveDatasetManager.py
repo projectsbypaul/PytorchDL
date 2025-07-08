@@ -78,3 +78,13 @@ class InteractiveDatasetManager:
 
             self.__train_loader = self.__active_set.get_train_loader(self.__global_batch_size)
             self.__test_loader = self.__active_set.get_test_loader(self.__global_batch_size)
+
+def main():
+    dataset_manager = InteractiveDatasetManager(r"H:\ABC\ABC_torch\ABC_training\train_1f0_mio_ks_16_pad_4_bw_5_vs_adaptive_n3\batch_iter_01", 0.9, 16)
+    train_size, val_size = dataset_manager.get_train_test_size()
+
+    print(f"Train on {dataset_manager.get_subset_count()} Managed Dataset samples")
+    print(f"Training samples {train_size}, Validation samples {val_size} ")
+
+if __name__ == "__main__":
+    main()

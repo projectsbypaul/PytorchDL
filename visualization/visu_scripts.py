@@ -5,6 +5,9 @@ from dl_torch.models.UNet3D_Segmentation import UNet3D_16EL
 from utility.data_exchange import cppIOexcavator
 import numpy as np
 import os
+import matplotlib.pyplot as plt
+import pandas as pd
+from scipy import stats
 
 def visu_mesh_label(data_loc : str, save_loc : str):
 
@@ -152,6 +155,75 @@ def visu_mesh_model_on_dir(data_loc : str,weights_loc : str, save_loc : str, ker
     # ftm_prediction = [class_to_index[item] for item in ftm_prediction]
 
     # print(f"Mesh Intersection Over Union {Custom_Metrics.mesh_IOU(ftm_prediction, ftm_ground_truth)}")
+
+def visu_histogram_segmentation_samples(val_result_loc :  str):
+
+    # create model signature
+    model_name = os.path.basename(val_result_loc)
+    model_name, _ = os.path.splitext(model_name)
+
+    with open(val_result_loc, "rb") as f:
+        sample_result = pickle.load(f)
+
+    df = pd.DataFrame(sample_result, columns=['Sample_ID', 'ABC_ID', 'Accuracy'])
+
+    current_path = os.path.abspath(val_result_loc)
+    path_without_ext = os.path.splitext(current_path)[0]
+
+    df.to_csv(path_without_ext + ".csv")
+
+    sample_iou = np.array([item[2]*100 for item in sample_result])
+    rounded_data = np.round(sample_iou, 2)
+    total_samples = len(sample_iou)
+
+
+
+    # Settings
+    x_limit = 100
+    bins = 100
+
+    # Create plot
+    fig, ax = plt.subplots(1, 1, figsize=(12, 8))
+
+    # Plot histogram and capture bar info
+    counts, bin_edges, patches = ax.hist(sample_iou, bins=bins, alpha=0.6, edgecolor='black')
+
+    # Annotate each bar with count value
+    for count, x in zip(counts, bin_edges[:-1]):
+        if count > 0:
+            ax.text(x + (bin_edges[1] - bin_edges[0]) / 2, count, f'{int(count)}',
+                    ha='center', va='bottom', fontsize=8, rotation=90)
+
+    # Calculate statistics
+    mean_val = np.mean(sample_iou)
+    median_val = np.median(sample_iou)
+
+    mode_result = stats.mode(rounded_data, keepdims=True)
+    mode_val = mode_result.mode[0]
+    mode_count = mode_result.count[0]
+
+    # Calculate percentiles
+    p25 = np.percentile(sample_iou, 25)
+    p75 = np.percentile(sample_iou, 75)
+
+    # Add vertical lines
+    ax.axvline(mean_val, color='red', linestyle='dashed', linewidth=1.5, label=f'Mean: {mean_val:.2f}')
+    ax.axvline(mode_val, color='blue', linestyle='solid', linewidth=1.5, label=f'Mode: {mode_val:.2f}')
+    ax.axvline(median_val, color='green', linestyle='dotted', linewidth=1.5, label=f'Median: {median_val:.2f}')
+    ax.axvline(p25, color='orange', linestyle='dashdot', linewidth=1.5, label=f'25th Percentile: {p25:.2f}')
+    ax.axvline(p75, color='purple', linestyle='dashdot', linewidth=1.5, label=f'75th Percentile: {p75:.2f}')
+
+    # Titles and limits
+    ax.set_title(f'Histogram of IoU on ABC samples\nTotal samples: {total_samples} \n{model_name}')
+    ax.set_xlim(0, x_limit)
+    ax.set_xlabel("IoU Value")
+    ax.set_ylabel("Frequency")
+    ax.legend()
+
+
+
+    plt.tight_layout()
+    plt.show()
 
 def main():
     data_loc = r"H:\ABC_Demo\target\test_1"

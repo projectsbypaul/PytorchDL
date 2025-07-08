@@ -260,8 +260,8 @@ def run_sanity_check_on_dir(dataset_path, result_path):
 
 def main():
 
-    dataset_path = r"H:\ABC\ABC_Datasets\Segmentation\training_samples\train_1000000_ks_16_pad_4_bw_5_vs_adaptive_n3"
-    result_path = r"H:\ABC\ABC_Datasets\Segmentation\sdf_sanity_check_results_1f0_mio.txt"
+    dataset_path = r"H:\ABC\ABC_Datasets\Segmentation\validation_samples\val_2500_ks_16_pad_4_bw_5_vs_adaptive_n3"
+    result_path = r"H:\ABC\ABC_Datasets\Segmentation\sdf_sanity_check_results_2500.txt"
 
     run_sanity_check_on_dir(dataset_path, result_path)
 
