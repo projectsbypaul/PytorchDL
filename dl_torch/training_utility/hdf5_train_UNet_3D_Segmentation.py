@@ -13,7 +13,6 @@ from torch.amp import autocast, GradScaler
 import time
 import platform
 
-
 def log_cuda_status():
     print(f"CUDA available: {torch.cuda.is_available()}")  # True if a GPU is available
     print(f"Number available GPUs {torch.cuda.device_count()}")  # Number of GPUs
@@ -35,7 +34,8 @@ def train_model_hdf_amp(model,
                     split: float = 0.9,
                     batch_size: int = 16,
                     val_batch_factor : int = 1,
-                    workers: int = 1):
+                    workers: int = 1,
+                    show_tqdm: bool = False):
 
     total_size = len(dataset)
     train_size = int(split * total_size)
@@ -63,8 +63,13 @@ def train_model_hdf_amp(model,
         model.train()
         epoch_train_loss, epoch_train_acc = 0.0, 0.0
 
-        tqdm.write(f"\n[Epoch {epoch + 1}/{num_epochs}] Training...")
-        for data, target in tqdm(train_loader, desc="Training", leave=True):
+        msg = f"\n[Epoch {epoch + 1}/{num_epochs}] Training..."
+        if show_tqdm:
+            tqdm.write(msg)
+        else:
+            print(msg)
+
+        for data, target in tqdm(train_loader, desc="Training", leave=True, disable=not show_tqdm):
             data = data.to(device)
             target = torch.argmax(target, dim=1).long().to(device)
 
@@ -83,9 +88,14 @@ def train_model_hdf_amp(model,
         model.eval()
         epoch_val_loss, epoch_val_acc = 0.0, 0.0
 
-        tqdm.write(f"\n[Epoch {epoch + 1}/{num_epochs}] Validating...")
+        msg = f"\n[Epoch {epoch + 1}/{num_epochs}] Validating..."
+        if show_tqdm:
+            tqdm.write(msg)
+        else:
+            print(msg)
+
         with torch.no_grad():
-            for data, target in tqdm(val_loader, desc="Validation", leave=True):
+            for data, target in tqdm(val_loader, desc="Validation", leave=True, disable=not show_tqdm):
                 data = data.to(device)
                 target = torch.argmax(target, dim=1).long().to(device)
 
@@ -139,7 +149,8 @@ def train_model_hdf(model,
                     split: float = 0.9,
                     batch_size: int = 16,
                     val_batch_factor: int = 1,
-                    workers: int = 1):
+                    workers: int = 1,
+                    show_tqdm: bool = False):
 
     total_size = len(dataset)
     train_size = int(split * total_size)
@@ -158,11 +169,7 @@ def train_model_hdf(model,
                 f"_bs{batch_size}")
     print(f"Model: {run_name}")
 
-    # Default log dir (fallback)
-    # log_root = f"../training_utility/runs/{run_name}"
     log_root = f"logs/tensorboard/runs/{run_name}"
-
-    #log_dir = os.path.join(log_root, run_name)
     writer = SummaryWriter(log_root)
 
     for epoch in range(num_epochs):
@@ -170,8 +177,13 @@ def train_model_hdf(model,
         model.train()
         epoch_train_loss, epoch_train_acc = 0.0, 0.0
 
-        print(f"\n[Epoch {epoch + 1}/{num_epochs}] Training...")
-        for data, target in tqdm(train_loader, desc="Training", leave=True):
+        msg = f"\n[Epoch {epoch + 1}/{num_epochs}] Training..."
+        if show_tqdm:
+            tqdm.write(msg)
+        else:
+            print(msg)
+
+        for data, target in tqdm(train_loader, desc="Training", leave=True, disable=not show_tqdm):
             data = data.to(device)
             target = torch.argmax(target, dim=1).long().to(device)
 
@@ -186,9 +198,15 @@ def train_model_hdf(model,
 
         model.eval()
         epoch_val_loss, epoch_val_acc = 0.0, 0.0
-        print(f"\n[Epoch {epoch+1}/{num_epochs}] Validating...")
+
+        msg = f"\n[Epoch {epoch + 1}/{num_epochs}] Validating..."
+        if show_tqdm:
+            tqdm.write(msg)
+        else:
+            print(msg)
+
         with torch.no_grad():
-            for data, target in tqdm(val_loader, desc="Validation", leave=True):
+            for data, target in tqdm(val_loader, desc="Validation", leave=True, disable=not show_tqdm):
                 data = data.to(device)
                 target = torch.argmax(target, dim=1).long().to(device)
                 output = model(data)
@@ -236,7 +254,8 @@ def training_routine_hdf5(model_name : str,
                           split,
                           use_amp: bool =False,
                           val_batch_factor: int = 1,
-                          workers: int = 1):
+                          workers: int = 1,
+                          show_tqdm: bool = False):
     # Model setup
     model = UNet3D_16EL(in_channels=1, out_channels=10)
     dataset = HDF5Dataset(hdf5_path)
@@ -265,7 +284,8 @@ def training_routine_hdf5(model_name : str,
                      split,
                      batch_size,
                      val_batch_factor,
-                     workers)
+                     workers,
+                     show_tqdm)
 
     run_name = f"{model_name}_lr[{lr}]_lrdc[{decay_order}]bs{batch_size}"
     model_save_name = model_weights_loc.format(model_name=model_name, run_name=run_name, epoch="last")
@@ -276,7 +296,6 @@ def main():
 
     hdf5_path = r"H:\ABC\ABC_torch\ABC_training\train_250k_ks_16_pad_4_bw_5_vs_adaptive_n3\dataset.hdf5"
     model_weights_loc = "../../data/model_weights/{model_name}/{run_name}_save_{epoch}.pth"
-
 
     model_name = "UNet3D_SDF_HDF5_workers_14_250k_AMP"
     training_routine_hdf5(model_name,
@@ -290,10 +309,10 @@ def main():
                           split=0.9,
                           use_amp=True,
                           val_batch_factor=1,
-                          workers = 14)
+                          workers=14,
+                          show_tqdm=False)  # <-- toggle here
 
     model_name = "UNet3D_SDF_HDF5_workers_14_250k"
-
     training_routine_hdf5(model_name,
                           hdf5_path,
                           model_weights_loc,
@@ -305,11 +324,8 @@ def main():
                           split=0.9,
                           use_amp=False,
                           val_batch_factor=1,
-                          workers=14)
-
+                          workers=14,
+                          show_tqdm=False)  # <-- toggle here
 
 if __name__ == "__main__":
     main()
-
-
-
