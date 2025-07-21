@@ -56,7 +56,8 @@ def train_model_hdf_amp(model,
                 f"_bs{batch_size}")
     print(f"Model: {run_name}")
 
-    writer = SummaryWriter(f"../training_utility/runs/{run_name}")
+    log_root = f"logs/tensorboard/runs/{run_name}"
+    writer = SummaryWriter(log_root)
 
     for epoch in range(num_epochs):
         epoch_start = time.time()
