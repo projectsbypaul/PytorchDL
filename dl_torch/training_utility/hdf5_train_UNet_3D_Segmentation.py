@@ -159,7 +159,8 @@ def train_model_hdf(model,
     print(f"Model: {run_name}")
 
     # Default log dir (fallback)
-    log_root = os.environ.get("LOGDIR", f"../training_utility/runs/{run_name}")
+    # log_root = f"../training_utility/runs/{run_name}"
+    log_root = f"logs/tensorboard/runs/{run_name}"
 
     #log_dir = os.path.join(log_root, run_name)
     writer = SummaryWriter(log_root)
