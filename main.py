@@ -33,7 +33,7 @@ def main():
 
     # module data_utility
     p_train_utility = subparsers.add_parser('train_utility')
-    p_train_utility.add_argument('mode', choices=['train_UNet3D', 'help'])
+    p_train_utility.add_argument('mode', choices=['train_UNet3D', 'train_hdf5_UNet3D', 'help'])
     p_train_utility.add_argument('arg0', type=str, nargs='?')
     p_train_utility.add_argument('arg1', type=str, nargs='?')
     p_train_utility.add_argument('arg2', type=str, nargs='?')
@@ -43,6 +43,9 @@ def main():
     p_train_utility.add_argument('arg6', type=str, nargs='?')
     p_train_utility.add_argument('arg7', type=str, nargs='?')
     p_train_utility.add_argument('arg8', type=str, nargs='?')
+    p_train_utility.add_argument('arg9', type=str, nargs='?')
+    p_train_utility.add_argument('arg10', type=str, nargs='?')
+    p_train_utility.add_argument('arg11', type=str, nargs='?')
 
     args = parser.parse_args()
 
@@ -151,6 +154,7 @@ def main():
                 lr : float = float(args.arg6)
                 decay_order : float = float(args.arg7)
                 split: float = float(args.arg8)
+
 
             except (TypeError, ValueError):
                 print("[ERROR] Invalid or missing arguments for 'create_subsets'.")
