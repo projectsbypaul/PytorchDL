@@ -8,6 +8,11 @@ import os
 import matplotlib.pyplot as plt
 import pandas as pd
 from scipy import stats
+import pyvista as pv
+import matplotlib.pyplot as plt
+from matplotlib.patches import Patch
+from matplotlib.colors import ListedColormap
+
 
 def visu_mesh_label(data_loc : str, save_loc : str):
 
@@ -225,10 +230,370 @@ def visu_histogram_segmentation_samples(val_result_loc :  str):
     plt.tight_layout()
     plt.show()
 
+def visu_voxel_on_dir(data_loc: str, weights_loc: str, kernel_size: int, padding: int, n_classes):
+
+
+    data_arrays = cppIOexcavator.load_segments_from_binary(os.path.join(data_loc ,"segmentation_data_segments.bin"))
+    seg_info = cppIOexcavator.parse_dat_file(os.path.join(data_loc , "segmentation_data.dat"))
+
+    # data torch
+    model_input = torch.tensor(np.array(data_arrays))
+    model_input = model_input.unsqueeze(1)
+
+    # load model
+    print("Evaluating Model")
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print("Using device:", device)
+
+    model = UNet3D_16EL(in_channels=1, out_channels=n_classes)
+    state_dict = torch.load(weights_loc)
+
+    model.load_state_dict(state_dict)  # it takes the loaded dictionary, not the path file itself
+    model.to(device)
+    model.eval()
+
+    print("model predicting outputs...")
+
+    # use model
+    with torch.no_grad():
+        model_input = model_input.to(device)
+        model_output = model(model_input)
+        model_output = model_output.cpu()
+
+        _, prediction = torch.max(model_output, 1)
+        prediction = prediction.cpu().numpy()
+        model_output = model_output.numpy()
+
+    # assemble outputs
+
+    origins = seg_info["ORIGIN_CONTAINER"]["data"]
+    bottom_coord = np.asarray(origins[0])
+    top_coord = np.asarray(origins[len(origins) - 1])
+    top_coord += [kernel_size - 1, kernel_size - 1, kernel_size - 1]
+    offsets = [[0, 0, 0] - bottom_coord + origin for origin in origins]
+
+    color_temp = color_templates.default_color_template_abc()
+
+    class_list = color_templates.get_class_list(color_temp)
+
+    custom_colors = color_templates.get_color_dict(color_temp)
+    custom_opacity = color_templates.get_opacity_dict(color_temp)
+
+    # assemble outputs
+    origins_array = np.asarray(origins)
+    bottom_coord = np.min(origins_array, axis=0)
+    top_coord = np.max(origins_array + kernel_size - 1, axis=0)
+
+    offsets = [[0, 0, 0] - bottom_coord + origin for origin in origins]
+
+    dim_vec = top_coord - bottom_coord
+
+    color_temp = color_templates.default_color_template_abc()
+    class_list = color_templates.get_class_list(color_temp)
+
+    void_class_name = 'Void'
+    void_class_idx = class_list.index(void_class_name)
+    full_grid = np.full(
+        shape=(int(dim_vec[0]), int(dim_vec[1]), int(dim_vec[2])),
+        fill_value=void_class_idx,
+        dtype=np.float32
+    )
+
+    print("assembling model outputs...")
+
+    for g_index in range(prediction.shape[0]):
+
+        grid = prediction[g_index, :]
+
+        offset = offsets[g_index]
+
+        for x in range(int(padding * 0.5), kernel_size - int(padding * 0.5)):
+            for y in range(int(padding * 0.5), kernel_size - int(padding * 0.5)):
+                for z in range(int(padding * 0.5), kernel_size - int(padding * 0.5)):
+                    full_grid[int(offset[0]) + x, int(offset[1]) + y, int(offset[2]) + z] = grid[x, y, z]
+
+
+    # Create a PyVista plotter
+    plotter = pv.Plotter()
+
+    cubes = []
+
+    print("drawing full grid outputs...")
+
+    counter = 0
+    n_cubes = full_grid.shape[0] * full_grid.shape[1] * full_grid.shape[1]
+
+    for x in range(full_grid.shape[0]):
+        for y in range(full_grid.shape[1]):
+            for z in range(full_grid.shape[2]):
+                class_idx = int(full_grid[x, y, z])
+                temp_label = class_list[class_idx]
+
+                # print(f"plotting {x} {y} {z}")
+
+                # Skip invisible (Void) cubes
+                if custom_opacity[temp_label] == 0.0:
+                    continue
+
+                # Create a cube centered at the grid location
+                cube = pv.Cube(center=(x, y, z), x_length=1.0,
+                               y_length=1.0,
+                               z_length=1.0)
+
+                color = custom_colors[temp_label]
+
+                color_rgb = tuple(c / 255 for c in color)
+                alpha = custom_opacity[temp_label]
+
+                rgba = np.append(color_rgb, alpha)  # [R, G, B, A]
+
+                cube.cell_data["colors"] = np.tile(rgba, (cube.n_cells, 1))
+
+                counter += 1
+                print(f"added cubes {counter} / {n_cubes}")
+
+                cubes.append(cube)
+
+    combined = pv.MultiBlock(cubes).combine()
+
+    plotter.add_mesh(combined, scalars="colors", rgba=True, show_edges=False)
+
+    # ---- Create Custom Legend ----
+    legend_entries = []
+    for label in class_list:
+        if custom_opacity[label] == 0.0:
+            continue
+        rgb = tuple(c / 255 for c in custom_colors[label])
+        legend_entries.append([label, rgb])
+
+    plotter.add_legend(legend_entries, bcolor='white', face='circle', size=(0.2, 0.25), loc='lower right')
+
+    plotter.show()
+
+def get_vdb_from_dir(data_loc: str, weights_loc: str, kernel_size: int, padding: int, n_classes, grid_name: str):
+
+    data_arrays = cppIOexcavator.load_segments_from_binary(os.path.join(data_loc ,"segmentation_data_segments.bin"))
+    seg_info = cppIOexcavator.parse_dat_file(os.path.join(data_loc , "segmentation_data.dat"))
+    # data torch
+    model_input = torch.tensor(np.array(data_arrays))
+    model_input = model_input.unsqueeze(1)
+
+    # load model
+    print("Evaluating Model")
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print("Using device:", device)
+
+    model = UNet3D_16EL(in_channels=1, out_channels=n_classes)
+    state_dict = torch.load(weights_loc)
+
+    model.load_state_dict(state_dict)  # it takes the loaded dictionary, not the path file itself
+    model.to(device)
+    model.eval()
+
+    print("model predicting outputs...")
+
+    # use model
+    with torch.no_grad():
+        model_input = model_input.to(device)
+        model_output = model(model_input)
+        model_output = model_output.cpu()
+
+        _, prediction = torch.max(model_output, 1)
+        prediction = prediction.cpu().numpy()
+        model_output = model_output.numpy()
+
+    # assemble outputs
+
+    # 'prediction' is your output from the model, shape: (num_segments, D, H, W)
+    # If it is (num_segments, D, H, W), convert to a list of 3D arrays
+    segments = [np.asarray(prediction[i], dtype=np.float32) for i in range(prediction.shape[0])]
+    cppIOexcavator.save_segments_to_binary(os.path.join(data_loc, 'predicted_segments.bin'), segments)
+
+def draw_voxel_input_slice_from_dir(
+    data_loc: str,
+    kernel_size: int,
+    padding: int,
+    slice_axis: int = 2,
+    slice_index: int = None,
+    cmap: str = 'viridis'  # Or 'gray', 'plasma', etc
+):
+    # 1. LOAD DATA
+    data_arrays = cppIOexcavator.load_segments_from_binary(
+        os.path.join(data_loc, "segmentation_data_segments.bin")
+    )
+    seg_info = cppIOexcavator.parse_dat_file(
+        os.path.join(data_loc, "segmentation_data.dat")
+    )
+
+    # Convert to float numpy array if not already
+    data_arrays = np.array(data_arrays, dtype=np.float32)
+
+    # 2. Assemble full input grid
+    origins = seg_info["ORIGIN_CONTAINER"]["data"]
+    origins_array = np.asarray(origins)
+    bottom_coord = np.min(origins_array, axis=0)
+    top_coord = np.max(origins_array + kernel_size - 1, axis=0)
+    offsets = [np.array([0, 0, 0]) - bottom_coord + origin for origin in origins]
+    dim_vec = top_coord - bottom_coord
+
+
+    full_input_grid = np.full(
+        shape=(int(dim_vec[0]), int(dim_vec[1]), int(dim_vec[2])),
+        fill_value=1,
+        dtype=np.float32
+    )
+
+
+    for g_index in range(data_arrays.shape[0]):
+        grid = data_arrays[g_index, :]
+        offset = offsets[g_index]
+        for x in range(int(padding * 0.5), kernel_size - int(padding * 0.5)):
+            for y in range(int(padding * 0.5), kernel_size - int(padding * 0.5)):
+                for z in range(int(padding * 0.5), kernel_size - int(padding * 0.5)):
+                    full_input_grid[
+                        int(offset[0]) + x,
+                        int(offset[1]) + y,
+                        int(offset[2]) + z
+                    ] = grid[x, y, z]
+
+    # 3. Select slice
+    if slice_index is None:
+        slice_index = full_input_grid.shape[slice_axis] // 2  # center by default
+
+    if slice_axis == 0:
+        img = full_input_grid[slice_index, :, :]
+    elif slice_axis == 1:
+        img = full_input_grid[:, slice_index, :]
+    elif slice_axis == 2:
+        img = full_input_grid[:, :, slice_index]
+    else:
+        raise ValueError("slice_axis must be 0, 1, or 2")
+
+    # 4. Plot
+    plt.figure(figsize=(8, 8))
+    im = plt.imshow(img, cmap=cmap, origin='lower')
+    plt.colorbar(im, fraction=0.046, pad=0.04, label="Input Float Value")
+    plt.title(f"Input values slice (axis={slice_axis}, index={slice_index})")
+    plt.axis('off')
+    plt.tight_layout()
+    plt.show()
+
+def draw_voxel_slice_from_dir(
+    data_loc: str,
+    weights_loc: str,
+    kernel_size: int,
+    padding: int,
+    n_classes: int,
+    slice_axis: int = 2,
+    slice_index: int = None
+):
+    # 1. LOAD DATA
+    data_arrays = cppIOexcavator.load_segments_from_binary(
+        os.path.join(data_loc, "segmentation_data_segments.bin")
+    )
+    seg_info = cppIOexcavator.parse_dat_file(
+        os.path.join(data_loc, "segmentation_data.dat")
+    )
+
+    # 2. Prepare Torch Input
+    model_input = torch.tensor(np.array(data_arrays))
+    model_input = model_input.unsqueeze(1)
+
+    # 3. Load Model
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    model = UNet3D_16EL(in_channels=1, out_channels=n_classes)
+    state_dict = torch.load(weights_loc, map_location=device)
+    model.load_state_dict(state_dict)
+    model.to(device)
+    model.eval()
+
+    # 4. Model Predict
+    with torch.no_grad():
+        model_input = model_input.to(device)
+        model_output = model(model_input)
+        model_output = model_output.cpu()
+        _, prediction = torch.max(model_output, 1)
+        prediction = prediction.cpu().numpy()
+
+    # 5. Assemble full voxel grid
+    origins = seg_info["ORIGIN_CONTAINER"]["data"]
+    origins_array = np.asarray(origins)
+    bottom_coord = np.min(origins_array, axis=0)
+    top_coord = np.max(origins_array + kernel_size - 1, axis=0)
+    offsets = [np.array([0, 0, 0]) - bottom_coord + origin for origin in origins]
+    dim_vec = top_coord - bottom_coord
+
+    color_temp = color_templates.default_color_template_abc()
+    class_list = color_templates.get_class_list(color_temp)
+
+    void_class_name = 'Void'
+    void_class_idx = class_list.index(void_class_name)
+    full_grid = np.full(
+        shape=(int(dim_vec[0]), int(dim_vec[1]), int(dim_vec[2])),
+        fill_value=void_class_idx,
+        dtype=np.float32
+    )
+
+    for g_index in range(prediction.shape[0]):
+        grid = prediction[g_index, :]
+        offset = offsets[g_index]
+        for x in range(int(padding * 0.5), kernel_size - int(padding * 0.5)):
+            for y in range(int(padding * 0.5), kernel_size - int(padding * 0.5)):
+                for z in range(int(padding * 0.5), kernel_size - int(padding * 0.5)):
+                    full_grid[
+                        int(offset[0]) + x,
+                        int(offset[1]) + y,
+                        int(offset[2]) + z
+                    ] = grid[x, y, z]
+
+    # 6. Color setup
+    color_temp = color_templates.default_color_template_abc()
+    class_list = color_templates.get_class_list(color_temp)
+    custom_colors = color_templates.get_color_dict(color_temp)
+    custom_opacity = color_templates.get_opacity_dict(color_temp)
+    color_list = [tuple(c/255 for c in custom_colors[lbl]) for lbl in class_list]
+    opacity_list = [custom_opacity[lbl] for lbl in class_list]
+
+    # 7. Select slice
+    if slice_index is None:
+        slice_index = full_grid.shape[slice_axis] // 2  # center by default
+
+    if slice_axis == 0:
+        img = full_grid[slice_index, :, :]
+    elif slice_axis == 1:
+        img = full_grid[:, slice_index, :]
+    elif slice_axis == 2:
+        img = full_grid[:, :, slice_index]
+    else:
+        raise ValueError("slice_axis must be 0, 1, or 2")
+
+    # ----
+    # Always include the Void class in the color mapping and legend!
+    # So, we include all classes (not just visible ones)
+    img_vis = img.astype(int)
+    cmap = ListedColormap(color_list)
+
+    legend_elements = [
+        Patch(facecolor=color_list[i], label=class_list[i])
+        for i in range(len(class_list))
+    ]
+
+    plt.figure(figsize=(8, 8))
+    plt.imshow(img_vis, cmap=cmap, origin='lower', vmin=0, vmax=len(class_list)-1)
+    plt.legend(handles=legend_elements, loc='upper right', bbox_to_anchor=(1.2, 1))
+    plt.title(f"Slice axis={slice_axis}, index={slice_index}")
+    plt.axis('off')
+    plt.tight_layout()
+    plt.show()
+
 def main():
-    data_loc = r"H:\ABC_Demo\target\test_1"
-    save_loc = r"H:\ABC_Demo\blender\label_1_color_map.pkl"
-    visu_mesh_label(data_loc, save_loc)
+    data_loc = r"H:\ABC_Demo\temp"
+    # data_loc = r"H:\ABC\ABC_Datasets\Segmentation\val_ks_16_pad_4_bw_5_vs_adaptive_n3\ABC_chunk_00\ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n3\00000002"
+    weights_loc = r"C:\Users\pschuster\source\repos\PytorchDL\data\model_weights\UNet3D_SDF_16EL_n_class_10_multiset_1f0_mio\UNet3D_SDF_16EL_n_class_10_multiset_1f0_mio_lr[0.0001]_lrdc[1e-01]_bs16_save_120.pth"
+    gird_name = "vdb_test"
+    # get_vdb_from_dir(data_loc, weights_loc, 16, 4, 10, gird_name)
+    get_vdb_from_dir(data_loc, weights_loc ,16, 4, 10, "test")
+    # draw_voxel_slice_from_dir(data_loc, weights_loc, 16, 4, 10, 0)
 
 if __name__=="__main__":
     main()

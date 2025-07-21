@@ -326,6 +326,34 @@ def load_segments_from_binary(
 
     return segments_list
 
+def save_segments_to_binary(bin_filepath, segments, dtype=np.float32, format_version=1):
+    """
+    Save a list of 3D numpy arrays as a binary segment file compatible with load_segments_from_binary.
+    """
+    # Sanity check all segments
+    for seg in segments:
+        assert isinstance(seg, np.ndarray), "All segments must be numpy arrays"
+        assert seg.ndim == 3, "Each segment must be 3D"
+        assert seg.dtype == dtype, f"All segments must have dtype {dtype}"
+
+    magic_number = 0x5345474D
+    element_type_id = 0 if dtype == np.float32 else 1  # match loader
+    num_segments = len(segments)
+
+    with open(bin_filepath, 'wb') as bf:
+        # Write header
+        header = struct.pack('<IHBI', magic_number, format_version, element_type_id, num_segments)
+        bf.write(header)
+
+        # Write segment descriptors
+        for seg in segments:
+            dims = seg.shape
+            bf.write(struct.pack('<III', dims[0], dims[1], dims[2]))
+
+        # Write segment data
+        for seg in segments:
+            bf.write(seg.tobytes(order='C'))
+
 
 def load_full_segmentation_data(dat_filepath: str) -> Optional[FullSegmentationData]:
     """

@@ -76,8 +76,8 @@ class HDF5Dataset(Dataset):
 
 
 def main():
-    source = r"H:\ABC\ABC_torch\ABC_training\train_1f0_mio_ks_16_pad_4_bw_5_vs_adaptive_n3\batch_iter_01"
-    target = r"H:\ABC\ABC_torch\ABC_training\train_1f0_mio_ks_16_pad_4_bw_5_vs_adaptive_n3\dataset.hdf5"
+    source = r"H:\ABC\ABC_torch\ABC_training\train_500k_ks_16_pad_4_bw_5_vs_adaptive_n3\batch_iter_01"
+    target = r"H:\ABC\ABC_torch\ABC_training\\train_500k_ks_16_pad_4_bw_5_vs_adaptive_n3\dataset.hdf5"
     HDF5Dataset.convert_pt_to_hdf5(source, target)
 
 if __name__ == "__main__":

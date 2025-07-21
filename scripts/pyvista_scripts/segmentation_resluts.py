@@ -509,7 +509,7 @@ def main():
     kernel_size = 16
     padding = 4
     n_classes = 10
-    __visu_mesh_model_on_dir(data_loc, weights_loc, kernel_size, padding, n_classes)
+    __visu_voxel_model_on_dir(data_loc, weights_loc)
 
 if __name__=="__main__":
     main()
