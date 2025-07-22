@@ -9,6 +9,7 @@ from functools import partial
 from dl_torch.model_utility.Scheduler import get_linear_scheduler
 from dl_torch.data_utility.InteractiveDatasetManager import InteractiveDatasetManager
 from torch.amp import autocast, GradScaler
+import time
 
 def train_model(
     model,
@@ -39,6 +40,7 @@ def train_model(
     writer = SummaryWriter(log_root)
 
     for epoch in range(num_epochs):
+        epoch_start_time = time.time()
         epoch_train_loss, epoch_train_acc = 0.0, 0.0
         epoch_val_loss, epoch_val_acc = 0.0, 0.0
         train_batches, val_batches = 0, 0
@@ -100,6 +102,7 @@ def train_model(
             torch.save(model.state_dict(), backup_name)
 
         scheduler.step()
+        print(f"Epoch duration: {time.time() - epoch_start_time:.2f} seconds")
 
     writer.close()
     print('Finished Training')
@@ -137,6 +140,7 @@ def train_model_amp(
     print(f"Using AMP: {device.type == 'cuda'}")
 
     for epoch in range(num_epochs):
+        epoch_start_time = time.time()
         epoch_train_loss, epoch_train_acc = 0.0, 0.0
         epoch_val_loss, epoch_val_acc = 0.0, 0.0
         train_batches, val_batches = 0, 0
@@ -201,6 +205,7 @@ def train_model_amp(
             torch.save(model.state_dict(), backup_name)
 
         scheduler.step()
+        print(f"Epoch duration: {time.time() - epoch_start_time:.2f} seconds")
 
     writer.close()
     print('Finished Training')
