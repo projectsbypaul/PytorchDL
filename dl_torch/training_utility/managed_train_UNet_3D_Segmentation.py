@@ -35,7 +35,8 @@ def train_model(
     )
     print(f"Model: {run_name}")
 
-    writer = SummaryWriter(f"../dl_torch/training_utility/runs/{run_name}")
+    log_root = f"/logs/tensorboard/runs/{run_name}"
+    writer = SummaryWriter(log_root)
 
     for epoch in range(num_epochs):
         epoch_train_loss, epoch_train_acc = 0.0, 0.0
@@ -129,7 +130,8 @@ def train_model_amp(
     )
     print(f"Model: {run_name}")
 
-    writer = SummaryWriter(f"../dl_torch/training_utility/runs/{run_name}")
+    log_root = f"/logs/tensorboard/runs/{run_name}"
+    writer = SummaryWriter(log_root)
 
     scaler = GradScaler(enabled=(device.type == 'cuda'))
     print(f"Using AMP: {device.type == 'cuda'}")
