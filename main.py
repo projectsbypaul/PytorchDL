@@ -136,7 +136,8 @@ def main():
             print()
             print("  main.py train_utility train_UNet3D \\")
             print("      <model_name> <dataset_dir> <model_weights_loc> <epoch> \\")
-            print("      <backup_epochs> <batch_size> <lr> <decay_order> <split> <workers>")
+            print("      <backup_epochs> <batch_size> <lr> <decay_order> <split> "
+                  "      <use_amp> <workers>")
             print()
             print("  main.py train_utility train_hdf5_UNet3D \\")
             print("      <model_name> <hdf5_path> <model_weights_loc> <epoch> \\")
@@ -154,7 +155,8 @@ def main():
                 lr : float = float(args.arg6)
                 decay_order : float = float(args.arg7)
                 split: float = float(args.arg8)
-                workers: int = int(args.arg9)
+                use_amp: bool = bool(args.arg9)
+                workers: int = int(args.arg10)
 
 
             except (TypeError, ValueError):
@@ -164,7 +166,8 @@ def main():
 
             # Replace this with your actual function call
             RunTrainingUtility.run_train_UNet_3D_Segmentation(
-                model_name, dataset_dir, model_weights_loc, epoch, backup_epochs, batch_size, lr, decay_order, split, workers
+                model_name, dataset_dir, model_weights_loc, epoch, backup_epochs, batch_size,
+                lr, decay_order, split, use_amp, workers
             )
         elif args.mode == 'train_hdf5_UNet3D':
             try:

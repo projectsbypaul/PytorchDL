@@ -12,10 +12,11 @@ class RunTrainingUtility:
                      lr,
                      decay_order,
                      split,
+                     use_amp = True,
                      num_workers: int = 0
                      ):
         training_routine(
-            model_name, dataset_dir, model_weights_loc, epochs, backup_epochs, batch_size, lr, decay_order, split, num_workers
+            model_name, dataset_dir, model_weights_loc, epochs, backup_epochs, batch_size, lr, decay_order, split, num_workers, use_amp
         )
 
         return 0
