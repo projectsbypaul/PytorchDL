@@ -4,11 +4,12 @@ from typing import Optional
 from dl_torch.data_utility.InteractiveDataset import InteractiveDataset
 
 class InteractiveDatasetManager:
-    def __init__(self, managed_directory: str, global_split: float, global_batch_size: int, set_name: str = "default"):
+    def __init__(self, managed_directory: str, global_split: float, global_batch_size: int,num_workers:int = 0 ,set_name: str = "default"):
         self.__managed_directory = managed_directory
         self.__global_split = global_split
         self.__global_batch_size = global_batch_size
         self.__set_name = set_name
+        self.__n_workers = num_workers
 
         self.__subset_list = sorted(os.listdir(managed_directory))
         self.__subset_count = len(self.__subset_list)
@@ -76,8 +77,8 @@ class InteractiveDatasetManager:
             self.__active_set.set_split(self.__global_split)
             self.__active_set.split_dataset()
 
-            self.__train_loader = self.__active_set.get_train_loader(self.__global_batch_size)
-            self.__test_loader = self.__active_set.get_test_loader(self.__global_batch_size)
+            self.__train_loader = self.__active_set.get_train_loader(self.__global_batch_size, self.__n_workers)
+            self.__test_loader = self.__active_set.get_test_loader(self.__global_batch_size, self.__n_workers)
 
 def main():
     dataset_manager = InteractiveDatasetManager(r"H:\ABC\ABC_torch\ABC_training\train_1f0_mio_ks_16_pad_4_bw_5_vs_adaptive_n3\batch_iter_01", 0.9, 16)

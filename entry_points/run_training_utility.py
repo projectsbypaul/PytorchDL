@@ -11,10 +11,11 @@ class RunTrainingUtility:
                      batch_size : int,
                      lr,
                      decay_order,
-                     split
+                     split,
+                     num_workers: int = 0
                      ):
         training_routine(
-            model_name, dataset_dir, model_weights_loc, epochs, backup_epochs, batch_size, lr, decay_order, split
+            model_name, dataset_dir, model_weights_loc, epochs, backup_epochs, batch_size, lr, decay_order, split, num_workers
         )
 
         return 0

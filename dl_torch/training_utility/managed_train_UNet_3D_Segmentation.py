@@ -115,11 +115,12 @@ def training_routine(model_name : str,
                      batch_size : int,
                      lr,
                      decay_order,
-                     split
+                     split,
+                     num_workers: int = 0
                      ):
     #setup model and data
     model_constructor = partial(UNet3D_16EL, in_channels=1, out_channels=10)
-    dataset_manager = InteractiveDatasetManager(dataset_dir, split, batch_size)
+    dataset_manager = InteractiveDatasetManager(dataset_dir, split, batch_size, num_workers=num_workers)
 
     # Check GPU
     log_cuda_status()
