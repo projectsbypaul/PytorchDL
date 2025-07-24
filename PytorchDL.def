@@ -1,0 +1,32 @@
+Bootstrap: docker
+From: python:3.12-slim
+
+%post
+    set -e  # stop on errors
+
+    mkdir -p /workspace/scripts 
+    mkdir -p /workspace/logs 
+    mkdir -p /workspace/model_weights
+    mkdir -p /workspace/datasets
+
+    apt-get update && apt-get install -y git
+
+    # Clone your project
+    git clone https://github.com/projectsbypaul/PytorchDL.git /workspace/PytorchDL
+
+    # Install dependencies to base python
+    pip install --upgrade pip
+
+    # CUDA 12.1 compatible PyTorch 2.5.1
+    pip install torch==2.5.1 --index-url https://download.pytorch.org/whl/cu121
+
+    # Install project dependencies
+    pip install -r /workspace/PytorchDL/requirements.txt
+
+%environment
+    export PYTHONPATH=/workspace/PytorchDL:$PYTHONPATH
+
+%runscript
+    echo "Root dir contents:"; ls /
+    echo "Python version:"; python --version
+    exec python /workspace/PytorchDL/main.py "$@"
