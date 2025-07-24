@@ -295,10 +295,10 @@ def training_routine_hdf5(model_name : str,
 def main():
     print(torch.__version__)
 
-    hdf5_path = r"H:\ABC\ABC_torch\ABC_training\train_250k_ks_16_pad_4_bw_5_vs_adaptive_n3\dataset.hdf5"
+    hdf5_path = r"H:\ABC\ABC_torch\ABC_training\train_500k_ks_16_pad_4_bw_5_vs_adaptive_n3\train_500k_ks_16_pad_4_bw_5_vs_adaptive_n3.hdf5"
     model_weights_loc = "../../data/model_weights/{model_name}/{run_name}_save_{epoch}.pth"
 
-    model_name = "UNet3D_SDF_HDF5_workers_14_250k_AMP"
+    model_name = "UNet3D_SDF_HDF5_workers_10_500k_AMP"
     training_routine_hdf5(model_name,
                           hdf5_path,
                           model_weights_loc,
@@ -309,24 +309,55 @@ def main():
                           decay_order=1e-1,
                           split=0.9,
                           use_amp=True,
-                          val_batch_factor=1,
-                          workers=14,
-                          show_tqdm=False)  # <-- toggle here
+                          val_batch_factor=4,
+                          workers=10,
+                          show_tqdm=True)  # <-- toggle here
 
-    model_name = "UNet3D_SDF_HDF5_workers_14_250k"
+    model_name = "UNet3D_SDF_HDF5_workers_10_500k_AMP"
     training_routine_hdf5(model_name,
                           hdf5_path,
                           model_weights_loc,
                           epochs=2,
                           backup_epochs=2,
-                          batch_size=16,
+                          batch_size=32,
                           lr=1e-4,
                           decay_order=1e-1,
                           split=0.9,
-                          use_amp=False,
-                          val_batch_factor=1,
-                          workers=14,
-                          show_tqdm=False)  # <-- toggle here
+                          use_amp=True,
+                          val_batch_factor=4,
+                          workers=10,
+                          show_tqdm=True)  # <-- toggle here
+
+    model_name = "UNet3D_SDF_HDF5_workers_10_500k_AMP"
+    training_routine_hdf5(model_name,
+                          hdf5_path,
+                          model_weights_loc,
+                          epochs=2,
+                          backup_epochs=2,
+                          batch_size=64,
+                          lr=1e-4,
+                          decay_order=1e-1,
+                          split=0.9,
+                          use_amp=True,
+                          val_batch_factor=4,
+                          workers=10,
+                          show_tqdm=True)  # <-- toggle here
+
+    model_name = "UNet3D_SDF_HDF5_workers_10_500k_AMP"
+    training_routine_hdf5(model_name,
+                          hdf5_path,
+                          model_weights_loc,
+                          epochs=2,
+                          backup_epochs=2,
+                          batch_size=128,
+                          lr=1e-4,
+                          decay_order=1e-1,
+                          split=0.9,
+                          use_amp=True,
+                          val_batch_factor=4,
+                          workers=10,
+                          show_tqdm=True)  # <-- toggle here
+
 
 if __name__ == "__main__":
     main()

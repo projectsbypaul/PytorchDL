@@ -266,16 +266,23 @@ def main():
     dataset_dir = r"H:\ABC\ABC_torch\ABC_training\train_500k_ks_16_pad_4_bw_5_vs_adaptive_n3\batch_iter_01"
     model_weights_loc = "../../data/model_weights/{model_name}/{run_name}_save_{epoch}.pth"
 
-    epochs = 200
-    backup_epochs = 100
+    epochs = 2
+    backup_epochs = 1
     learning_rate = 1e-4
     decay_order = 1e-1
-    batch_size = 4
     split = 0.9
 
     # Use AMP:
-    training_routine(model_name, dataset_dir, model_weights_loc, epochs, backup_epochs, batch_size, learning_rate, decay_order, split, use_amp=True)
+    training_routine(model_name, dataset_dir, model_weights_loc, epochs, backup_epochs, 16, learning_rate, decay_order, split, use_amp=True)
     # Or run without AMP by setting use_amp=False
+    training_routine(model_name, dataset_dir, model_weights_loc, epochs, backup_epochs, 32, learning_rate, decay_order,
+                     split, use_amp=True)
+    training_routine(model_name, dataset_dir, model_weights_loc, epochs, backup_epochs, 64, learning_rate, decay_order,
+                     split, use_amp=True)
+    training_routine(model_name, dataset_dir, model_weights_loc, epochs, backup_epochs, 128, learning_rate, decay_order,
+                     split, use_amp=True)
+    training_routine(model_name, dataset_dir, model_weights_loc, epochs, backup_epochs, 4, learning_rate, decay_order,
+                     split, use_amp=True)
 
 if __name__ == "__main__":
     main()
