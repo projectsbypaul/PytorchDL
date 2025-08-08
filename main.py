@@ -15,21 +15,21 @@ def main():
 
     # module data_utility
     p_data_utility = subparsers.add_parser('data_utility')
-    p_data_utility.add_argument('mode', choices=['create_subsets', 'batch_subsets','help'])
+    p_data_utility.add_argument('mode', choices=['create_subsets', 'batch_subsets', 'torch_to_hdf5','help'])
     p_data_utility.add_argument('arg0', type=str, nargs='?')
     p_data_utility.add_argument('arg1', type=str, nargs='?')
     p_data_utility.add_argument('arg2', type=str, nargs='?')
     p_data_utility.add_argument('arg3', type=str, nargs='?')
 
-    # module data_utility
-    p_data_utility = subparsers.add_parser('visualization')
-    p_data_utility.add_argument('mode', choices=['model_on_mesh', 'help'])
-    p_data_utility.add_argument('arg0', type=str, nargs='?')
-    p_data_utility.add_argument('arg1', type=str, nargs='?')
-    p_data_utility.add_argument('arg2', type=str, nargs='?')
-    p_data_utility.add_argument('arg3', type=str, nargs='?')
-    p_data_utility.add_argument('arg4', type=str, nargs='?')
-    p_data_utility.add_argument('arg5', type=str, nargs='?')
+    # module visualization  (use a different variable name)
+    p_visualization = subparsers.add_parser('visualization')
+    p_visualization.add_argument('mode', choices=['model_on_mesh', 'help'])
+    p_visualization.add_argument('arg0', type=str, nargs='?')
+    p_visualization.add_argument('arg1', type=str, nargs='?')
+    p_visualization.add_argument('arg2', type=str, nargs='?')
+    p_visualization.add_argument('arg3', type=str, nargs='?')
+    p_visualization.add_argument('arg4', type=str, nargs='?')
+    p_visualization.add_argument('arg5', type=str, nargs='?')
 
     # module data_utility
     p_train_utility = subparsers.add_parser('train_utility')
