@@ -5,6 +5,7 @@ import re
 import os
 from utility.data_exchange import cppIO
 import torch
+from typing import List
 from dl_torch.data_utility.InteractiveDataset import InteractiveDataset
 from dl_torch.data_utility.DataParsing import clean_up_files
 from dl_torch.data_utility import DataParsing
@@ -425,43 +426,76 @@ def create_ABC_sub_Dataset_from_job(job_file: str, segment_dir : str, torch_dir 
 
             sub_dataset.save_dataset(os.path.join(torch_dir, target + ".torch"))
 
-def batch_ABC_sub_Datasets(source_dir: str, target_dir, dataset_name: str, batch_count: int):
-    parent_folder = Path(source_dir)
-    file_extension = ".torch"
-    file_paths = list(parent_folder.rglob(f"*{file_extension}"))
+def batch_ABC_sub_Datasets(source_dir: str, target_dir: str, dataset_name: str, batch_count: int):
+    src = Path(source_dir)
+    out = Path(target_dir)
+    out.mkdir(parents=True, exist_ok=True)
 
-    batch_size = math.ceil(len(file_paths)/batch_count)
-    batch_start_indicies = [index * batch_size for index in range(batch_count)]
+    # Collect .torch files deterministically
+    file_paths: List[Path] = sorted(src.rglob("*.torch"))
+    n_files = len(file_paths)
 
-    for index, start_index in enumerate(batch_start_indicies):
-        data_set_joined = InteractiveDataset.load_dataset(file_paths[start_index])
+    if n_files == 0:
+        raise RuntimeError(f"No .torch subsets found in {source_dir}")
 
-        end_index = start_index + batch_size if index < (batch_count - 1) else len(file_paths)
+    # If batch_count is larger than available files, cap it
+    batch_count = max(1, min(batch_count, n_files))
 
-        for i in range(start_index + 1, end_index):
+    # Split into ~equal batches without going OOB
+    # sizes like: [ceil(n/b), ... first (n % b) times, then floor(n/b) ...]
+    base = n_files // batch_count
+    rem = n_files % batch_count
+    sizes = [base + 1] * rem + [base] * (batch_count - rem)
+
+    # Compute batch index ranges
+    starts = []
+    s = 0
+    for sz in sizes:
+        starts.append((s, s + sz))
+        s += sz
+
+    for batch_idx, (start, end) in enumerate(starts):
+        group = file_paths[start:end]  # never OOB, may be size 1
+
+        # Load the first dataset in the group
+        first_fp = group[0]
+        data_set_joined = InteractiveDataset.load_dataset(str(first_fp))
+
+        # Merge the rest
+        for fp in group[1:]:
             try:
-                data_set = InteractiveDataset.load_dataset(file_paths[i])
-                data_set_joined.data = torch.vstack([data_set_joined.data, data_set.data])
-                data_set_joined.labels = torch.vstack([data_set_joined.labels, data_set.labels])
-                print(f"merged {os.path.basename(file_paths[i])} into {data_set_joined.get_name()}")
+                ds = InteractiveDataset.load_dataset(str(fp))
+                # Assumes same shapes; otherwise add shape checks here.
+                data_set_joined.data = torch.vstack([data_set_joined.data, ds.data])
+                data_set_joined.labels = torch.vstack([data_set_joined.labels, ds.labels])
+                print(f"merged {os.path.basename(str(fp))} into {data_set_joined.get_name()}")
 
                 # Free memory
-                del data_set
+                del ds
                 gc.collect()
-                torch.cuda.empty_cache()
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
             except Exception as e:
-                print(f"merge failed on subset {i} ({file_paths[i]}): {e}")
+                # Don't index into file_paths with i; use the actual fp
+                print(f"merge failed on file '{fp}': {e}")
+                raise
 
-        batch_name = dataset_name + "_batch_" + str(index)
-        save_name = f"{target_dir}/{batch_name}.torch"
-        data_set_joined.save_dataset(save_name)
+        # Save the batch
+        batch_name = f"{dataset_name}_batch_{batch_idx}"
+        save_path = out / f"{batch_name}.torch"
+        data_set_joined.save_dataset(str(save_path))
 
-        print(data_set_joined.get_info())
+        # Optional info
+        try:
+            print(data_set_joined.get_info())
+        except Exception:
+            pass
 
-        # Free memory of joined dataset before next batch
+        # Cleanup
         del data_set_joined
         gc.collect()
-        torch.cuda.empty_cache()
+        if torch.cuda.is_available():
+            torch.cuda.empty_cache()
 
 def main():
     __permute_labels_of_dataset_dir(r"H:\ABC\ABC_torch\ABC_chunk_00\batched_data_ks_16_pad_4_bw_5_vs_adaptive_n2_testing")
