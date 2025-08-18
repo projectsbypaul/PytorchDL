@@ -6,19 +6,50 @@ VisualProperties = Dict[str, Tuple[Color, Opacity]]
 
 def default_color_template_abc() -> VisualProperties:
     return {
-        'BSpline': ((138, 43, 226), 1.0),
-        'Cone': ((0, 0, 255), 1.0),
-        'Cylinder': ((255, 0, 0), 1.0),
+        'BSpline':  ((138, 43, 226), 1.0),
+        'Cone':        ((0, 0, 255), 1.0),
+        'Cylinder':    ((255, 0, 0), 1.0),
         'Extrusion': ((255, 165, 0), 1.0),
-        'Other': ((128, 128, 128), 1.0),
-        'Plane': ((255, 20, 147), 1.0),
-        'Revolution': ((0, 128, 0), 1.0),
-        'Sphere': ((128, 0, 0), 1.0),
-        'Torus': ((0, 255, 255), 1.0),
-        'Void': ((0, 0, 0), 0.0),
+        'Other':   ((128, 128, 128), 1.0),
+        'Plane':    ((255, 20, 147), 1.0),
+        'Revolution':  ((0, 128, 0), 1.0),
+        'Sphere':      ((128, 0, 0), 1.0),
+        'Torus':     ((0, 255, 255), 1.0),
+        'Void':          ((0, 0, 0), 0.0),
     }
 
+def inside_outside_color_template_abc() -> VisualProperties:
+    return {
+        'BSpline':  ((138, 43, 226), 1.0),   # purple
+        'Cone':     ((0, 128, 0),    1.0),   # green
+        'Cylinder': ((255, 165, 0),  1.0),   # orange
+        'Plane':    ((255, 20, 147), 1.0),   # deep pink
+        'Sphere':   ((128, 0, 0),    1.0),   # maroon
+        'Torus':    ((0, 255, 255),  1.0),   # cyan
+        'Inside':   ((255, 0, 0),    0.0),   # red
+        'Outside':  ((0, 0, 255),    0.0),   # blue
+    }
 
+def edge_color_template_abc() -> VisualProperties:
+    return {
+        'BSpline':  ((138, 43, 226), 1.0),   # purple
+        'Cone':     ((0, 128, 0),    1.0),   # green
+        'Cylinder': ((255, 165, 0),  1.0),   # orange
+        'Plane':    ((255, 20, 147), 1.0),   # deep pink
+        'Sphere':   ((128, 0, 0),    1.0),   # maroon
+        'Torus':    ((0, 255, 255),  1.0),   # cyan
+        'Edge':     ((255, 255, 0),  1.0),   # yellow
+        'Inside':   ((255, 0, 0),    0.0),   # red
+        'Outside':  ((0, 0, 255),    0.0),   # blue
+    }
+
+def edge_only_color_template_abc() -> VisualProperties:
+    return {
+        'Surface':   ((128, 0, 0),   1.0),   # maroon
+        'Edge':     ((255, 255, 0),  1.0),   # yellow
+        'Inside':   ((255, 0, 0),    0.0),   # red
+        'Outside':  ((0, 0, 255),    0.0),   # blue
+    }
 
 def get_color(template: VisualProperties, class_name: str) -> Color:
     return template.get(class_name, template['Other'])[0]

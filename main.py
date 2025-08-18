@@ -21,6 +21,8 @@ def main():
     p_data_utility.add_argument('arg1', type=str, nargs='?')
     p_data_utility.add_argument('arg2', type=str, nargs='?')
     p_data_utility.add_argument('arg3', type=str, nargs='?')
+    p_data_utility.add_argument('arg4', type=str, nargs='?')
+
 
     # module visualization  (use a different variable name)
     p_visualization = subparsers.add_parser('visualization')
@@ -63,7 +65,7 @@ def main():
         if args.mode == 'help' or args.arg0 is None:
             print("Usage:")
             print("main.py data_utility help")
-            print("main.py data_utility create_subsets <job_file> <source_dir> <target_dir> <n_min_files>")
+            print("main.py data_utility create_subsets <job_file> <source_dir> <target_dir> <n_min_files> <template>")
             print("main.py data_utility batch_subsets <source_dir> <target_dir> <dataset_name> <batch_count>")
             print("main.py data_utility torch_to_hdf5 <torch_dir> <out_file>")
             sys.exit(0)
@@ -73,13 +75,14 @@ def main():
                 source_dir: str = args.arg1
                 target_dir: str = args.arg2
                 n_min_files: int = int(args.arg3)
+                template : str = args.arg4
             except (TypeError, ValueError):
                 print("[ERROR] Invalid or missing arguments for 'create_subsets'.")
                 p_data_utility.print_help()
                 sys.exit(1)
             # Replace this with your actual function call
             RunABCHelperFunctions.run_create_ABC_sub_Dataset_from_job(
-                job_file, source_dir, target_dir, n_min_files
+                job_file, source_dir, target_dir, n_min_files, template
             )
         elif args.mode == 'batch_subsets':
             try:
