@@ -110,7 +110,7 @@ def main():
 
     save_loc = r"H:\ABC\ABC_statistics\val_segmentation\val_sample_2500"
     kernel_size = 16
-    padding = 4
+
     val_dataset_path = r"H:\ABC\ABC_Datasets\Segmentation\validation_samples\val_2500_ks_16_pad_4_bw_5_vs_adaptive_n3"
 
     for w in w_loc:

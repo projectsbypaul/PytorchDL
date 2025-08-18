@@ -6,6 +6,7 @@ import sys
 from entry_points.run_visu import RunVisu
 from entry_points.run_data_utility import RunABCHelperFunctions
 from entry_points.run_training_utility import RunTrainingUtility
+from entry_points.run_validation_utility import RunValidation
 
 
 def main():
@@ -46,6 +47,15 @@ def main():
     p_train_utility.add_argument('arg9', type=str, nargs='?')
     p_train_utility.add_argument('arg10', type=str, nargs='?')
     p_train_utility.add_argument('arg11', type=str, nargs='?')
+
+    # module data_utility
+    p_validation_utility = subparsers.add_parser('validation_utility')
+    p_validation_utility.add_argument('mode', choices=['val_segmentation_UNet16', help])
+    p_validation_utility.add_argument('arg0', type=str, nargs='?')
+    p_validation_utility.add_argument('arg1', type=str, nargs='?')
+    p_validation_utility.add_argument('arg2', type=str, nargs='?')
+    p_validation_utility.add_argument('arg3', type=str, nargs='?')
+    p_validation_utility.add_argument('arg4', type=str, nargs='?')
 
     args = parser.parse_args()
 
@@ -200,6 +210,33 @@ def main():
             p_data_utility.print_help()
             sys.exit(1)
 
+    elif args.module == 'validation_utility':
+        if args.mode == 'help' or args.arg0 is None:
+            print("Usage:\n")
+            print("")
+            print("main.py validation_utility help")
+            print(
+                "main.py validation_utility val_segmentation_UNet16 <val_dataset> <weights_loc> <save_loc> <kernel_size> <padding>")
+            sys.exit(0)
+        elif args.mode == 'val_segmentation_UNet16':
+            try:
+                data_loc: str = args.arg0
+                weight_loc: str = args.arg1
+                save_loc: str = args.arg2
+                kernel_size: int = int(args.arg3)
+                padding: int = int(args.arg4)
+            except (TypeError, ValueError):
+                print("[ERROR] Invalid or missing arguments for 'val_segmentation_UNet16'.")
+                p_data_utility.print_help()
+                sys.exit(1)
+
+            # Replace this with your actual function call
+            RunValidation.run_validate_segmentation_model(data_loc, weight_loc, save_loc, kernel_size, padding)
+        else:
+            print("[ERROR] Invalid mode for validation_utility.")
+            p_data_utility.print_help()
+            sys.exit(1)
+
     else:
         parser.print_help()
         sys.exit(1)
@@ -207,8 +244,7 @@ def main():
 
 if __name__ == '__main__':
     # For debugging, uncomment the next line:
-    # data_loc = r'H:\ABC_Demo\target'
-    # weights_loc = r'H:\ABC_Demo\weights\UNet3D_SDF_16EL_n_class_10_lr[1e-05]_lrdc[1e-01]_bs4_save_100.pth'
+     # weights_loc = r'H:\ABC_Demo\weights\UNet3D_SDF_16EL_n_class_10_lr[1e-05]_lrdc[1e-01]_bs4_save_100.pth'
     # save_loc = r"H:/ABC_Demo/blender/color_map_learned.pkl"
     # kernel_size = 16
     # padding = 4
