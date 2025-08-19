@@ -114,7 +114,7 @@ def run_sanity_check_on_labels_parquet():
 def run_sanity_check_on_labels_rework():
     id = "00000000"
 
-    data_path = os.path.join(r"H:\ABC\ABC_Benchmark\torch_benchmark\edge_only", id + ".torch")
+    data_path = os.path.join(r"H:\ABC\ABC_Benchmark\torch_benchmark\inside_outside", id + ".torch")
     target_dir  = fr"H:\ABC\ABC_Benchmark\Outputs_Benchmark\{id}"
 
     segment_info_file = os.path.join(target_dir, "segmentation_data.dat")
@@ -128,7 +128,7 @@ def run_sanity_check_on_labels_rework():
     class_dict = dataset.get_class_dictionary() # {label_name: class_index}
     class_list = list(class_dict.keys())
 
-    color_temp = color_templates.edge_only_color_template_abc()
+    color_temp = color_templates.inside_outside_color_template_abc()
     custom_colors  = color_templates.get_color_dict(color_temp)   # {label_name: (r,g,b) 0..255}
     custom_opacity = color_templates.get_opacity_dict(color_temp) # {label_name: alpha 0..1}
 

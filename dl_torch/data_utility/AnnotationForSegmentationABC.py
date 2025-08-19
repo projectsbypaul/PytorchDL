@@ -80,83 +80,118 @@ def __sub_Dataset_from_target_dir_default(target_dir: str, class_list, class_lot
 
     return data, labels
 
-def __sub_Dataset_from_target_dir_inside_outside(target_dir: str, class_list, class_lot, index_lot):
+import numpy as np
+import torch
 
-    bin_array_file = target_dir + "/segmentation_data_segments.bin"
-    segment_info_file = target_dir + "/segmentation_data.dat"
+def __sub_Dataset_from_target_dir_inside_outside(
+    target_dir: str,
+    class_list,                # list/array of class names, must include "Inside" and "Outside"
+    class_lot: dict,           # {class_name -> class_index}
+    index_lot: dict,           # {class_index -> class_name}, optional (kept for compatibility)
+    epsilon: float = 0.0       # treat |grid| <= epsilon as 0; set small >0 to avoid "unassignable"
+):
+    """
+    Vectorized rebuild of __sub_Dataset_from_target_dir_inside_outside.
+
+    Returns:
+        data   : torch.FloatTensor of shape [N, D, D, D] (same dtype as loaded grids, cast to float32)
+        labels : torch.UInt8Tensor of shape [N, D, D, D, C] one-hot per voxel
+    """
+    bin_array_file   = f"{target_dir}/segmentation_data_segments.bin"
+    segment_info_file= f"{target_dir}/segmentation_data.dat"
 
     segment_data = cppIOexcavator.parse_dat_file(segment_info_file)
 
-    origins = segment_data["ORIGIN_CONTAINER"]["data"]
-    face_type_map = np.array(list(segment_data["FACE_TYPE_MAP"].values()))
-    face_to_index_map = segment_data["FACE_TO_GRID_INDEX_CONTAINER"]["data"]
-    uniques = segment_data['TYPE_COUNT_MAP']
+    # Load metadata
+    origins = np.asarray(segment_data["ORIGIN_CONTAINER"]["data"], dtype=np.int64)       # [N, 3]
+    face_type_map = np.asarray(list(segment_data["FACE_TYPE_MAP"].values()))            # [F] (assumed aligned)
+    face_to_index_map = np.asarray(segment_data["FACE_TO_GRID_INDEX_CONTAINER"]["data"], dtype=np.int64)  # [F, 3]
 
-    bin_arrays = cppIOexcavator.load_segments_from_binary(bin_array_file)
+    # Load voxel grids
+    bin_arrays = cppIOexcavator.load_segments_from_binary(bin_array_file)  # list of [D, D, D] arrays
+    num_parts = len(bin_arrays)
+    num_classes = len(class_list)
 
-    labels = []
+    labels_out = []
+    for part_idx, grid in enumerate(bin_arrays):
+        grid = np.asarray(grid)  # ensure ndarray
+        D = grid.shape[0]
+        origin = origins[part_idx]                         # [3]
+        top = origin + (D - 1)                             # inclusive bounds
 
-    for grid_index, grid in enumerate(bin_arrays):
+        # Face-based annotations: pick faces that land inside this grid’s cube
+        fc = face_to_index_map                             # [F, 3] (global coords)
+        inside_mask = (fc >= origin).all(axis=1) & (fc <= top).all(axis=1)
+        if inside_mask.any():
+            fc_local = fc[inside_mask] - origin            # [M, 3] local coords
+            face_types = face_type_map[inside_mask]        # [M] strings
+            # map types -> class indices
+            face_cls_idx = np.fromiter((class_lot[t] for t in face_types), dtype=np.int64, count=face_types.shape[0])
+        else:
+            fc_local = np.empty((0,3), dtype=np.int64)
+            face_cls_idx = np.empty((0,), dtype=np.int64)
 
-        df_voxel_count = dict()
+        # Accumulate per-voxel class vote counts
+        # counts shape: [D, D, D, C], uint16 should be enough for vote tallies
+        counts = np.zeros((D, D, D, num_classes), dtype=np.uint16)
+        if fc_local.size > 0:
+            xi, yi, zi = fc_local[:,0], fc_local[:,1], fc_local[:,2]
+            ci = face_cls_idx
+            # Multiple faces may map to same voxel/class -> use add.at for safe accumulation
+            np.add.at(counts, (xi, yi, zi, ci), 1)
 
-        for index, surf_type in enumerate(class_list):
-            df_voxel_count.update({surf_type: 0})
+        # Resolve face votes -> one-hot where present
+        max_vals = counts.max(axis=-1)                     # [D, D, D]
+        max_idx  = counts.argmax(axis=-1)                  # [D, D, D]
+        has_face = max_vals > 0
 
-        grid_dim = grid.shape[0]
+        # Prepare final one-hot label volume (compact dtype)
+        label = np.zeros((D, D, D, num_classes), dtype=np.uint8)
 
-        origin = np.asarray(origins[grid_index])
+        if has_face.any():
+            xi, yi, zi = np.where(has_face)
+            label[xi, yi, zi, max_idx[has_face]] = 1
 
-        top = origin + [grid_dim - 1, grid_dim - 1, grid_dim - 1]
+        # Fill remaining voxels using SDF sign
+        unlabeled = ~has_face
+        if epsilon > 0:
+            neg_mask = (grid < -epsilon) & unlabeled
+            pos_mask = (grid >  epsilon) & unlabeled
+            zero_mask = (~neg_mask) & (~pos_mask) & unlabeled  # |grid| <= eps
+        else:
+            neg_mask = (grid < 0) & unlabeled
+            pos_mask = (grid > 0) & unlabeled
+            zero_mask = (grid == 0) & unlabeled
 
-        label = np.zeros(shape=[grid_dim, grid_dim, grid_dim, class_list.shape[0]])
+        # Require "Inside" and "Outside" in class_lot
+        inside_idx  = class_lot["Inside"]
+        outside_idx = class_lot["Outside"]
+        if neg_mask.any():
+            label[neg_mask, inside_idx] = 1
+        if pos_mask.any():
+            label[pos_mask, outside_idx] = 1
 
-        write_count = 0
+        # Handle true zeros deterministically:
+        # Option A: push zeros to nearest sign (choose Outside by default)
+        # Option B: if you have a dedicated "Surface" class, map zero_mask to that.
+        if zero_mask.any():
+            # Fallback: treat as Outside (change if you prefer Inside or a "Surface" class)
+            label[zero_mask, outside_idx] = 1
+            # Or, if "Surface" in class_lot:
+            # surf_idx = class_lot.get("Surface", outside_idx)
+            # label[zero_mask, surf_idx] = 1
 
-        # face based annotations
-        for face_index, face_center in enumerate(face_to_index_map):
+        labels_out.append(label)
 
-            if origin[0] <= face_center[0] <= top[0] and origin[1] <= face_center[1] <= top[1] and origin[2] <= \
-                    face_center[2] <= \
-                    top[2]:
-                grid_coord = face_center - origin
+    # Stack & convert with minimal copies
+    data_np   = np.stack([np.asarray(g, dtype=np.float32) for g in bin_arrays], axis=0)  # [N, D, D, D]
+    labels_np = np.stack(labels_out, axis=0)                                             # [N, D, D, D, C]
 
-                type_string = face_type_map[face_index]
-                one_hot_index = class_lot[type_string]
-                label[int(grid_coord[0]), int(grid_coord[1]), int(grid_coord[2]), one_hot_index] += 1
-                write_count += 1
+    data_t   = torch.from_numpy(data_np)     # float32
+    labels_t = torch.from_numpy(labels_np)   # uint8
 
-        # print(f"wrote {write_count} labels for part {path}")
+    return data_t, labels_t
 
-        for i, j, k in np.ndindex(label.shape[0], label.shape[1], label.shape[2]):
-            voxel = label[i, j, k, :]
-
-            if np.sum(voxel) > 0:
-                max_index = np.argmax(voxel)
-                label[i, j, k, :] = np.zeros_like(voxel)
-                label[i, j, k, max_index] = 1
-                df_voxel_count[index_lot[max_index]] += 1
-            else:
-                if grid[i,j,k] < 0:
-                  label[i, j, k, class_lot["Inside"]] = 1
-                  df_voxel_count['Inside'] += 1
-                elif grid[i,j,k] > 0:
-                    label[i, j, k, class_lot["Outside"]] = 1
-                    df_voxel_count['Outside'] += 1
-                else:
-                    print("Error: Unassign able voxel found")
-                    continue
-
-        # print(f"Writer Counter part {path} grid {grid_index}")
-        # print(df_voxel_count.keys())
-        # print(df_voxel_count.values())
-
-        labels.append(label)
-
-    data = torch.tensor(np.array(bin_arrays))
-    labels = torch.tensor(np.array(labels))
-
-    return data, labels
 
 def __sub_Dataset_from_target_dir_edge(target_dir: str, class_list, class_lot, index_lot):
 
@@ -249,7 +284,7 @@ def __sub_Dataset_from_target_dir_edge(target_dir: str, class_list, class_lot, i
                     label[i, j, k, class_lot["Outside"]] = 1
                     df_voxel_count['Outside'] += 1
                 else:
-                    print("Error: Unassign able voxel found")
+                    print(f"Error: Unassign able voxel found val: {grid[i, j, k]}")
                     continue
 
         labels.append(label)
@@ -350,7 +385,7 @@ def __sub_Dataset_from_target_dir_edge_only(target_dir: str, class_list, class_l
                     label[i, j, k, class_lot["Outside"]] = 1
                     df_voxel_count['Outside'] += 1
                 else:
-                    print("Error: Unassign able voxel found")
+                    print(f"Error: Unassign able voxel found val: {grid[i,j,k]}")
                     continue
 
         labels.append(label)
@@ -570,9 +605,9 @@ def batch_ABC_sub_Datasets(source_dir: str, target_dir: str, dataset_name: str, 
 
 def main():
     segment_dir=r"H:\ABC\ABC_Benchmark\Outputs_Benchmark"
-    torch_dir=r"H:\ABC\ABC_Benchmark\torch_benchmark\edge_only"
+    torch_dir=r"H:\ABC\ABC_Benchmark\torch_benchmark\inside_outside"
     job_file = r"H:\ABC\ABC_Benchmark\torch_job\Instance001.job"
-    create_ABC_sub_Dataset_from_job(job_file, segment_dir, torch_dir, 2, "edge_only" )
+    create_ABC_sub_Dataset_from_job(job_file, segment_dir, torch_dir, 2, "inside_outside" )
 
 if __name__ == "__main__":
     main()
