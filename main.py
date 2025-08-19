@@ -67,7 +67,7 @@ def main():
             print("main.py data_utility help")
             print("main.py data_utility create_subsets <job_file> <source_dir> <target_dir> <n_min_files> <template>")
             print("main.py data_utility batch_subsets <source_dir> <target_dir> <dataset_name> <batch_count>")
-            print("main.py data_utility torch_to_hdf5 <torch_dir> <out_file>")
+            print("main.py data_utility torch_to_hdf5 <torch_dir> <out_file> <fixed_length>")
             sys.exit(0)
         elif args.mode == 'create_subsets':
             try:
@@ -91,7 +91,7 @@ def main():
                 dataset_name : str = args.arg2
                 batch_count: int = int(args.arg3)
             except (TypeError, ValueError):
-                print("[ERROR] Invalid or missing arguments for 'create_subsets'.")
+                print("[ERROR] Invalid or missing arguments for 'batch_subsets'.")
                 p_data_utility.print_help()
                 sys.exit(1)
             # Replace this with your actual function call
@@ -102,13 +102,14 @@ def main():
             try:
                 torch_dir: str = args.arg0
                 out_file: str = args.arg1
+                fixed_length: int = int(args.arg2)
             except (TypeError, ValueError):
                 print("[ERROR] Invalid or missing arguments for 'create_subsets'.")
                 p_data_utility.print_help()
                 sys.exit(1)
             # Replace this with your actual function call
             RunABCHelperFunctions.run_torch_to_hdf5(
-                torch_dir, out_file
+                torch_dir, out_file, fixed_length
             )
         else:
             print("[ERROR] Invalid mode for data_utility.")

@@ -264,8 +264,9 @@ def run_sanity_check_on_dir(dataset_path, result_path):
     print(f"Results saved to {output_file}")
 
 def main():
-
-    run_sanity_check_on_labels_rework()
+    dataset = r"W:\hpc_workloads\hpc_out\train_5000_ks16_pd0_bw4_vs0f5_20250818-224702\output_train_5000_ks16_pd0_bw4_vs0f5_20250818-224702_results"
+    result = r":\hpc_workloads\result.txt"
+    run_sanity_check_on_dir(dataset, result)
 
 if __name__ == "__main__":
     main()
