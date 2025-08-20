@@ -33,11 +33,13 @@ class RunTrainingUtility:
                      split,
                      use_amp: bool,
                      val_batch_factor: int,
-                     workers: int):
+                     workers: int,
+                     n_classes: int,
+                     model_seed: int):
 
         training_routine_hdf5(
             model_name, hdf5_path, model_weights_loc, epochs, backup_epochs, batch_size,
-            lr, decay_order, split, use_amp, val_batch_factor, workers
+            lr, decay_order, split, use_amp, val_batch_factor, workers, n_classes=n_classes, model_seed=model_seed
         )
 
 

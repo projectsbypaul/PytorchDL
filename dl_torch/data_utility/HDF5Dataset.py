@@ -373,7 +373,7 @@ class HDF5Dataset(Dataset):
                     print(f"    {k} = {v}")
 
 def main():
-    h5_dataset = r"W:\hpc_workloads\hpc_datasets\train_5000_ks16_pd0_bw4_vs0f5_20250818-224702\train_5000_ks16_pd0_bw4_vs0f5_20250818-224702_dataset.h5"
+    h5_dataset = r"W:\hpc_workloads\hpc_datasets\train_5000_ks16_pd0_bw4_vs2f5_20250818-224703\train_5000_ks16_pd0_bw4_vs2f5_20250818-224703_dataset.h5"
     HDF5Dataset.print_file_info(h5_dataset)
 
 if __name__ == "__main__":
