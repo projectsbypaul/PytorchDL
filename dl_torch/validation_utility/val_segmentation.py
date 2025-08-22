@@ -35,10 +35,8 @@ def validate_segmentation_model(val_dataset_loc : str, weights_loc : str, save_l
             continue
 
         try:
-            # if your binding expects two files:
-            segment_data = cppIOexcavator.parse_dat_file(str(dat_path), str(bin_path))
-            # or, if it expects a directory:
-            # segment_data = cppIOexcavator.parse_dat_file(str(sample))
+            segment_data = cppIOexcavator.parse_dat_file(dat_path)
+
         except FileNotFoundError as e:
             print(f"[WARN] parse_dat_file failed for {sample}: {e} — skipping")
             continue
