@@ -1,4 +1,6 @@
 import os.path
+from dbm import error
+
 from visualization import color_templates
 import torch
 import pickle
@@ -6,22 +8,47 @@ from utility.data_exchange import cppIOexcavator
 import numpy as np
 from dl_torch.models.UNet3D_Segmentation import UNet3D_16EL
 from dl_torch.model_utility import Custom_Metrics
+from pathlib import Path
 
 def validate_segmentation_model(val_dataset_loc : str, weights_loc : str, save_loc : str, kernel_size : int, padding : int):
 
     val_sample_names = os.listdir(val_dataset_loc)
     val_sample_path = [os.path.join(val_dataset_loc, name) for name in val_sample_names]
 
+    val_sample_path = [
+        p for p in val_sample_path
+        if Path(p).is_dir() and
+           (Path(p) / "segmentation_data.dat").exists() and
+           (Path(p) / "segmentation_data_segments.bin").exists()
+    ]
+
     sample_result = []
 
     for s_index, sample in enumerate(val_sample_path):
+        sample = Path(sample)
+        dat_path = sample / "segmentation_data.dat"
+        bin_path = sample / "segmentation_data_segments.bin"
 
-        segment_data = cppIOexcavator.parse_dat_file(os.path.join(sample, "segmentation_data.dat"))
+        if not dat_path.exists() or not bin_path.exists():
+            print(f"[WARN] missing {'' if dat_path.exists() else dat_path.name} "
+                  f"{'' if bin_path.exists() else bin_path.name} in {sample} — skipping")
+            continue
+
+        try:
+            # if your binding expects two files:
+            segment_data = cppIOexcavator.parse_dat_file(str(dat_path), str(bin_path))
+            # or, if it expects a directory:
+            # segment_data = cppIOexcavator.parse_dat_file(str(sample))
+        except FileNotFoundError as e:
+            print(f"[WARN] parse_dat_file failed for {sample}: {e} — skipping")
+            continue
+
+        segment_data = cppIOexcavator.parse_dat_file(dat_path)
         origins = segment_data["ORIGIN_CONTAINER"]["data"]
         face_to_grid_index = segment_data["FACE_TO_GRID_INDEX_CONTAINER"]["data"]
         ftm_ground_truth = segment_data["FACE_TYPE_MAP"]
 
-        sdf_grids = cppIOexcavator.load_segments_from_binary(os.path.join(sample, "segmentation_data_segments.bin"))
+        sdf_grids = cppIOexcavator.load_segments_from_binary(bin_path)
 
         # data torch
         model_input = torch.tensor(np.array(sdf_grids))
