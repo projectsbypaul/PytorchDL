@@ -46,8 +46,6 @@ def validate_segmentation_model(val_dataset_loc : str, weights_loc : str, save_l
         face_to_grid_index = segment_data["FACE_TO_GRID_INDEX_CONTAINER"]["data"]
         ftm_ground_truth = segment_data["FACE_TYPE_MAP"]
 
-
-
         # data torch
         model_input = torch.tensor(np.array(sdf_grids))
         model_input = model_input.unsqueeze(1)
