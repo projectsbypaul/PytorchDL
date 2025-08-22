@@ -36,17 +36,17 @@ def validate_segmentation_model(val_dataset_loc : str, weights_loc : str, save_l
 
         try:
             segment_data = cppIOexcavator.parse_dat_file(dat_path)
+            sdf_grids = cppIOexcavator.load_segments_from_binary(bin_path)
 
         except FileNotFoundError as e:
-            print(f"[WARN] parse_dat_file failed for {sample}: {e} — skipping")
+            print(f"[WARN] parse_dat_file failed or load_segments_from_binary for {sample}: {e} — skipping")
             continue
 
-        segment_data = cppIOexcavator.parse_dat_file(dat_path)
         origins = segment_data["ORIGIN_CONTAINER"]["data"]
         face_to_grid_index = segment_data["FACE_TO_GRID_INDEX_CONTAINER"]["data"]
         ftm_ground_truth = segment_data["FACE_TYPE_MAP"]
 
-        sdf_grids = cppIOexcavator.load_segments_from_binary(bin_path)
+
 
         # data torch
         model_input = torch.tensor(np.array(sdf_grids))
