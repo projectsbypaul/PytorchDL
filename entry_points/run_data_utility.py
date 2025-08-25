@@ -14,7 +14,7 @@ class RunABCHelperFunctions:
 
     @staticmethod
     def run_torch_to_hdf5(torch_dir: str, out_file: str):
-       HDF5Dataset.convert_pt_to_hdf5(torch_dir, out_file, fixed_length=200000)
+       HDF5Dataset.convert_pt_to_hdf5(torch_dir, out_file)
        return 0
 
 def main():
