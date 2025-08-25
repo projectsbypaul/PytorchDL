@@ -326,8 +326,12 @@ def main():
     #__histogramm_segmentation_samples(val_stat_file)
     # __balance_dataset()
     #TO DO: Add tag for model name
-    stat_dir = r"H:\ABC\ABC_statistics\val_segmentation\val_sample_2500"
-    out_file = r"H:\ABC\ABC_statistics\val_segmentation\val_UNet3D_2500.csv"
-    val_segmentation_stats_on_dir(stat_dir, out_file)
+    # stat_dir = r"H:\ABC\ABC_statistics\val_segmentation\val_sample_2500"
+    # out_file = r"H:\ABC\ABC_statistics\val_segmentation\val_UNet3D_2500.csv"
+    stat_file = r"W:\hpc_workloads\hpc_out\taguchi_L9_1_val_result.bin"
+
+    result, _, _ , _ ,_  = val_segmentation_stats_on_file(stat_file)
+    print(result)
+
 if __name__ == "__main__":
     main()
