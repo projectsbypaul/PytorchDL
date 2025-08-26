@@ -1,5 +1,6 @@
 from dl_torch.data_utility import AnnotationForSegmentationABC
 from dl_torch.data_utility.HDF5Dataset import HDF5Dataset
+from dl_torch.data_utility import hdf5_utility
 
 class RunABCHelperFunctions:
     @staticmethod
@@ -16,6 +17,10 @@ class RunABCHelperFunctions:
     def run_torch_to_hdf5(torch_dir: str, out_file: str):
        HDF5Dataset.convert_pt_to_hdf5(torch_dir, out_file)
        return 0
+
+    @staticmethod
+    def run_crop_hdf5_dataset(target : str, n_samples):
+        hdf5_utility.crop_hdf_dataset(target, n_samples)
 
 def main():
     pass

@@ -16,7 +16,7 @@ def main():
 
     # module data_utility
     p_data_utility = subparsers.add_parser('data_utility')
-    p_data_utility.add_argument('mode', choices=['create_subsets', 'batch_subsets', 'torch_to_hdf5','help'])
+    p_data_utility.add_argument('mode', choices=['create_subsets', 'batch_subsets', 'torch_to_hdf5', 'crop_hdf5','help'])
     p_data_utility.add_argument('arg0', type=str, nargs='?')
     p_data_utility.add_argument('arg1', type=str, nargs='?')
     p_data_utility.add_argument('arg2', type=str, nargs='?')
@@ -70,6 +70,7 @@ def main():
             print("main.py data_utility create_subsets <job_file> <source_dir> <target_dir> <n_min_files> <template>")
             print("main.py data_utility batch_subsets <source_dir> <target_dir> <dataset_name> <batch_count>")
             print("main.py data_utility torch_to_hdf5 <torch_dir> <out_file> <fixed_length>")
+            print("main.py data_utility crop_hdf5 <target> <n_samples>")
             sys.exit(0)
         elif args.mode == 'create_subsets':
             try:
@@ -106,13 +107,27 @@ def main():
                 out_file: str = args.arg1
                 # fixed_length: int = int(args.arg2)
             except (TypeError, ValueError):
-                print("[ERROR] Invalid or missing arguments for 'create_subsets'.")
+                print("[ERROR] Invalid or missing arguments for 'torch_to_hdf5'.")
                 p_data_utility.print_help()
                 sys.exit(1)
             # Replace this with your actual function call
             RunABCHelperFunctions.run_torch_to_hdf5(
                 torch_dir, out_file
             )
+        elif args.mode == 'crop_hdf5':
+            try:
+                target: str = args.arg0
+                n_samples: int = int(args.arg1)
+                # fixed_length: int = int(args.arg2)
+            except (TypeError, ValueError):
+                print("[ERROR] Invalid or missing arguments for 'crop_hdf5'.")
+                p_data_utility.print_help()
+                sys.exit(1)
+            # Replace this with your actual function call
+            RunABCHelperFunctions.run_crop_hdf5_dataset(
+                target, n_samples
+            )
+
         else:
             print("[ERROR] Invalid mode for data_utility.")
             p_data_utility.print_help()
