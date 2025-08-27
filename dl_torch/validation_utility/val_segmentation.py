@@ -55,7 +55,7 @@ def validate_segmentation_model(val_dataset_loc : str, weights_loc : str, save_l
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         print("Using device:", device)
 
-        model = UNet3D_16EL(in_channels=1, out_channels=10)
+        model = UNet3D_16EL(in_channels=1, out_channels=8)
         state_dict = torch.load(weights_loc)
 
         model.load_state_dict(state_dict)  # it takes the loaded dictionary, not the path file itself
@@ -94,7 +94,7 @@ def validate_segmentation_model(val_dataset_loc : str, weights_loc : str, save_l
                     for z in range(int(padding * 0.5), kernel_size - int(padding * 0.5)):
                         full_grid[int(offset[0]) + x, int(offset[1]) + y, int(offset[2]) + z] = grid[x, y, z]
 
-        color_temp = color_templates.default_color_template_abc()
+        color_temp = color_templates.inside_outside_color_template_abc()
 
         index_to_class = color_templates.get_index_to_class_dict(color_temp)
         class_to_index = color_templates.get_class_to_index_dict(color_temp)
