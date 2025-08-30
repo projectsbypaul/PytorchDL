@@ -1,6 +1,7 @@
 import os.path
 from dbm import error
-
+import pandas as pd
+from scipy import stats
 from visualization import color_templates
 import torch
 import pickle
@@ -10,6 +11,58 @@ from dl_torch.models.UNet3D_Segmentation import UNet3D_16EL
 from dl_torch.model_utility import Custom_Metrics
 from pathlib import Path
 
+def val_segmentation_stats_on_dir(val_result_dir :  str, output_file):
+    input_files = [f for f in os.listdir(val_result_dir) if f.endswith(".bin")]
+    input_paths = [os.path.join(val_result_dir, f) for f in input_files]
+
+    results = []
+
+    for file_path in input_paths:
+        try:
+            save_name = os.path.splitext(os.path.basename(file_path))[0]
+            res_stats = val_segmentation_stats_on_file(file_path)
+            results.append((save_name, *res_stats))
+        except Exception as e:
+            print(f"Error processing {file_path}: {e}")
+
+    df = pd.DataFrame(results,
+                      columns=['Save_Name', 'Mean_IoU', 'Median_IoU', 'Mode_IoU', '25th_Percentile', '75th_Percentile'])
+    df.to_csv(output_file, sep=';', decimal=',',index=False)
+    print(f"Saved summary to: {output_file}")
+
+def val_segmentation_stats_on_file(val_result_loc :  str):
+    # create model signature
+    model_name = os.path.basename(val_result_loc)
+    model_name, _ = os.path.splitext(model_name)
+
+    with open(val_result_loc, "rb") as f:
+        sample_result = pickle.load(f)
+
+    df = pd.DataFrame(sample_result, columns=['Sample_ID', 'ABC_ID', 'Accuracy'])
+
+    current_path = os.path.abspath(val_result_loc)
+    path_without_ext = os.path.splitext(current_path)[0]
+
+    df.to_csv(path_without_ext + ".csv")
+
+    sample_iou = np.array([item[2] * 100 for item in sample_result])
+    rounded_data = np.round(sample_iou, 2)
+    total_samples = len(sample_iou)
+
+
+    # Calculate statistics
+    mean_val = np.mean(sample_iou)
+    median_val = np.median(sample_iou)
+
+    mode_result = stats.mode(rounded_data, keepdims=True)
+    mode_val = mode_result.mode[0]
+    mode_count = mode_result.count[0]
+
+    # Calculate percentiles
+    p25 = np.percentile(sample_iou, 25)
+    p75 = np.percentile(sample_iou, 75)
+
+    return mean_val, median_val, mode_val, p25, p75
 
 def validate_segmentation_model(val_dataset_loc: str, weights_loc: str, save_loc: str, kernel_size: int, padding: int):
 
@@ -194,21 +247,11 @@ def validate_segmentation_model(val_dataset_loc: str, weights_loc: str, save_loc
 
 
 def main():
-    # w_loc_0 = r"H:\ABC\ABC_torch\temp_models\UNet3D_SDF_16EL_n_class_10_multiset_250k\UNet3D_SDF_16EL_n_class_10_multiset_250k_lr[0.0001]_lrdc[1e-01]_bs16_save_0.pth"
-    w_loc_1 = r"H:\ABC\ABC_torch\temp_models\UNet3D_SDF_16EL_n_class_10_multiset_1f0_mio\UNet3D_SDF_16EL_n_class_10_multiset_1f0_mio_lr[0.0001]_lrdc[1e-01]_bs16_save_90.pth"
+    stat_dir = r"W:\hpc_workloads\hpc_val\taguchi_L9"
+    stat_out = r"W:\hpc_workloads\hpc_val\Block_B_result_2.csv"
 
-    w_loc = [w_loc_1]
+    val_segmentation_stats_on_dir(stat_dir, stat_out)
 
-    save_loc = r"H:\ABC\ABC_statistics\val_segmentation\val_sample_2500"
-    kernel_size = 16
-
-    val_dataset_path = r"H:\ABC\ABC_Datasets\Segmentation\validation_samples\val_2500_ks_16_pad_4_bw_5_vs_adaptive_n3"
-
-    for w in w_loc:
-        save_name = os.path.splitext(w)[0] + ".pkl"
-        save_name = os.path.basename(save_name)
-        save_name = os.path.join(save_loc, save_name)
-        validate_segmentation_model(val_dataset_path, w, save_name, kernel_size, 4)
 
 
 if __name__ == "__main__":

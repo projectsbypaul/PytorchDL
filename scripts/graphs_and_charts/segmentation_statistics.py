@@ -199,59 +199,6 @@ def __data_class_contribution():
     # pip install pyarrow pandas
     df_statistics.to_parquet(os.path.join(save_dir,os.path.basename(segment_dir) + ".parquet"), engine='pyarrow', compression='snappy')
 
-def val_segmentation_stats_on_dir(val_result_dir :  str, output_file):
-    input_files = [f for f in os.listdir(val_result_dir) if f.endswith(".pkl")]
-    input_paths = [os.path.join(val_result_dir, f) for f in input_files]
-
-    results = []
-
-    for file_path in input_paths:
-        try:
-            save_name = os.path.splitext(os.path.basename(file_path))[0]
-            res_stats = val_segmentation_stats_on_file(file_path)
-            results.append((save_name, *res_stats))
-        except Exception as e:
-            print(f"Error processing {file_path}: {e}")
-
-    df = pd.DataFrame(results,
-                      columns=['Save_Name', 'Mean_IoU', 'Median_IoU', 'Mode_IoU', '25th_Percentile', '75th_Percentile'])
-    df.to_csv(output_file, index=False)
-    print(f"Saved summary to: {output_file}")
-
-def val_segmentation_stats_on_file(val_result_loc :  str):
-    # create model signature
-    model_name = os.path.basename(val_result_loc)
-    model_name, _ = os.path.splitext(model_name)
-
-    with open(val_result_loc, "rb") as f:
-        sample_result = pickle.load(f)
-
-    df = pd.DataFrame(sample_result, columns=['Sample_ID', 'ABC_ID', 'Accuracy'])
-
-    current_path = os.path.abspath(val_result_loc)
-    path_without_ext = os.path.splitext(current_path)[0]
-
-    df.to_csv(path_without_ext + ".csv")
-
-    sample_iou = np.array([item[2] * 100 for item in sample_result])
-    rounded_data = np.round(sample_iou, 2)
-    total_samples = len(sample_iou)
-
-
-    # Calculate statistics
-    mean_val = np.mean(sample_iou)
-    median_val = np.median(sample_iou)
-
-    mode_result = stats.mode(rounded_data, keepdims=True)
-    mode_val = mode_result.mode[0]
-    mode_count = mode_result.count[0]
-
-    # Calculate percentiles
-    p25 = np.percentile(sample_iou, 25)
-    p75 = np.percentile(sample_iou, 75)
-
-    return mean_val, median_val, mode_val, p25, p75
-
 def __histogramm_segmentation_samples(val_result_loc :  str):
 
     # create model signature
@@ -271,8 +218,6 @@ def __histogramm_segmentation_samples(val_result_loc :  str):
     sample_iou = np.array([item[2]*100 for item in sample_result])
     rounded_data = np.round(sample_iou, 2)
     total_samples = len(sample_iou)
-
-
 
     # Settings
     x_limit = 100
@@ -322,16 +267,11 @@ def __histogramm_segmentation_samples(val_result_loc :  str):
     plt.show()
 
 def main():
-    #val_stat_file = r"H:\ABC\ABC_statistics\val_segmentation\val_sample_2500\UNet3D_SDF_16EL_n_class_10_multiset_1f0_mio_lr[0.0001]_lrdc[1e-01]_bs16_save_120.pkl"
-    #__histogramm_segmentation_samples(val_stat_file)
-    # __balance_dataset()
-    #TO DO: Add tag for model name
-    # stat_dir = r"H:\ABC\ABC_statistics\val_segmentation\val_sample_2500"
-    # out_file = r"H:\ABC\ABC_statistics\val_segmentation\val_UNet3D_2500.csv"
-    stat_file = r"W:\hpc_workloads\hpc_out\taguchi_L9_1_val_result.bin"
+    stats_file = r"W:\hpc_workloads\hpc_val\taguchi_L9\taguchi_L9_23_val_result.bin"
+    __histogramm_segmentation_samples(stats_file)
 
-    result, _, _ , _ ,_  = val_segmentation_stats_on_file(stat_file)
-    print(result)
+
+
 
 if __name__ == "__main__":
     main()
