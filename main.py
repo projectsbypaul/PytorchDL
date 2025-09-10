@@ -2,6 +2,9 @@
 import argparse
 import sys
 
+from sympy import false
+from torch.utils.hipify.hipify_python import str2bool
+
 #project includes
 from entry_points.run_visu import RunVisu
 from entry_points.run_data_utility import RunABCHelperFunctions
@@ -216,7 +219,7 @@ def main():
                 lr : float = float(args.arg6)
                 decay_order : float = float(args.arg7)
                 split: float = float(args.arg8)
-                use_amp: bool = bool(args.arg9)
+                use_amp: bool = str2bool(args.arg9)
                 workers: int = int(args.arg10)
 
 
@@ -241,7 +244,7 @@ def main():
                 lr: float = float(args.arg6)
                 decay_order: float = float(args.arg7)
                 split: float = float(args.arg8)
-                use_amp: bool = bool(args.arg9)
+                use_amp: bool = str2bool(args.arg9)
                 val_batch_factor: int = int(args.arg10)
                 workers: int = int(args.arg11)
                 n_classes: int = int(args.arg12)
@@ -308,8 +311,8 @@ def main():
                 root: str = args.arg0
                 instance_count: int = int(args.arg1)
                 output_dir: str = args.arg2
-                abs_path: bool = bool(args.arg3)
-                recursive: bool = bool(args.arg4)
+                abs_path: bool = str2bool(args.arg3)
+                recursive: bool = str2bool(args.arg4)
             except (TypeError, ValueError):
                 print("[ERROR] Invalid or missing arguments for 'j_create_all'.")
                 p_job_utility.print_help()
@@ -324,8 +327,8 @@ def main():
                 ext_arg = args.arg2
                 extensions : [str] = [e if e.startswith(".") else "." + e for e in ext_arg.replace(",", " ").split()]
                 output_dir: str = args.arg3
-                abs_path: bool = bool(args.arg4)
-                recursive: bool = bool(args.arg5)
+                abs_path: bool = str2bool(args.arg4)
+                recursive: bool = str2bool(args.arg5)
             except (TypeError, ValueError):
                 print("[ERROR] Invalid or missing arguments for 'j_create_ext'.")
                 p_job_utility.print_help()
@@ -338,7 +341,7 @@ def main():
                 root: str = args.arg0
                 instance_count: int = int(args.arg1)
                 output_dir: str = args.arg2
-                abs_path: bool = bool(args.arg3)
+                abs_path: bool = str2bool(args.arg3)
             except (TypeError, ValueError):
                 print("[ERROR] Invalid or missing arguments for 'j_create_dirs'.")
                 p_job_utility.print_help()
