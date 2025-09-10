@@ -7,6 +7,7 @@ from entry_points.run_visu import RunVisu
 from entry_points.run_data_utility import RunABCHelperFunctions
 from entry_points.run_training_utility import RunTrainingUtility
 from entry_points.run_validation_utility import RunValidation
+from entry_points.run_job_utility import RunJobUtility
 
 
 def main():
@@ -16,7 +17,7 @@ def main():
 
     # module data_utility
     p_data_utility = subparsers.add_parser('data_utility')
-    p_data_utility.add_argument('mode', choices=['create_subsets', 'batch_subsets', 'torch_to_hdf5', 'crop_hdf5','help'])
+    p_data_utility.add_argument('mode', choices=['create_subsets', 'create_subsets_from_zip','batch_subsets', 'torch_to_hdf5', 'crop_hdf5','help'])
     p_data_utility.add_argument('arg0', type=str, nargs='?')
     p_data_utility.add_argument('arg1', type=str, nargs='?')
     p_data_utility.add_argument('arg2', type=str, nargs='?')
@@ -54,12 +55,22 @@ def main():
 
     # module data_utility
     p_validation_utility = subparsers.add_parser('validation_utility')
-    p_validation_utility.add_argument('mode', choices=['val_segmentation_UNet16', help])
+    p_validation_utility.add_argument('mode', choices=['val_segmentation_UNet16', 'help'])
     p_validation_utility.add_argument('arg0', type=str, nargs='?')
     p_validation_utility.add_argument('arg1', type=str, nargs='?')
     p_validation_utility.add_argument('arg2', type=str, nargs='?')
     p_validation_utility.add_argument('arg3', type=str, nargs='?')
     p_validation_utility.add_argument('arg4', type=str, nargs='?')
+
+    # module job_utility
+    p_job_utility = subparsers.add_parser('job_utility')
+    p_job_utility.add_argument('mode', choices=['j_create_all', 'j_create_ext', 'j_create_dirs', 'help'])
+    p_job_utility.add_argument('arg0', type=str, nargs='?')
+    p_job_utility.add_argument('arg1', type=str, nargs='?')
+    p_job_utility.add_argument('arg2', type=str, nargs='?')
+    p_job_utility.add_argument('arg3', type=str, nargs='?')
+    p_job_utility.add_argument('arg4', type=str, nargs='?')
+    p_job_utility.add_argument('arg5', type=str, nargs='?')
 
     args = parser.parse_args()
 
@@ -68,6 +79,7 @@ def main():
             print("Usage:")
             print("main.py data_utility help")
             print("main.py data_utility create_subsets <job_file> <source_dir> <target_dir> <n_min_files> <template>")
+            print("main.py data_utility create_subsets_from_zip <source_dir> <job_file> <workspace> <template> <batch_count>")
             print("main.py data_utility batch_subsets <source_dir> <target_dir> <dataset_name> <batch_count>")
             print("main.py data_utility torch_to_hdf5 <torch_dir> <out_file> <fixed_length>")
             print("main.py data_utility crop_hdf5 <target> <n_samples>")
@@ -87,6 +99,23 @@ def main():
             RunABCHelperFunctions.run_create_ABC_sub_Dataset_from_job(
                 job_file, source_dir, target_dir, n_min_files, template
             )
+        elif args.mode == 'create_subsets_from_zip':
+            try:
+                source_dir : str = args.arg0
+                job_file: str = args.arg1
+                workspace : str = args.arg2
+                template: str = args.arg3
+                batch_count : int = int(args.arg4)
+            except (TypeError, ValueError):
+                print("[ERROR] Invalid or missing arguments for 'create_subsets_from_zip'.")
+                p_data_utility.print_help()
+                sys.exit(1)
+            # Replace this with your actual function call
+            RunABCHelperFunctions.run_compressed_segment_dir_to_dataset_from_job(
+                source_dir, job_file, workspace, template, batch_count
+            )
+
+
         elif args.mode == 'batch_subsets':
             try:
                 source_dir : str = args.arg0
@@ -101,6 +130,7 @@ def main():
             RunABCHelperFunctions.run_batch_ABC_sub_Datasets(
                 source_dir, target_dir, dataset_name, batch_count
             )
+
         elif args.mode == 'torch_to_hdf5':
             try:
                 torch_dir: str = args.arg0
@@ -260,9 +290,74 @@ def main():
             p_data_utility.print_help()
             sys.exit(1)
 
+    #choices=['j_create_all', 'j_create_ext', 'j_create_dirs', 'help'])
+
+    elif args.module == 'job_utility':
+        if args.mode == 'help' or args.arg0 is None:
+            print("Usage:\n")
+            print("")
+            print("main.py job_utility help")
+            print(
+                "main.py job_utility j_create_all <root> <instance_count> <output_dir> [abs_path:False] [recursive:False]\n"
+                "main.py job_utility j_create_ext <root> <instance_count> <extensions> <output_dir> [abs_path:False] [recursive:False]\n"
+                "main.py job_utility j_create_dirs <root> <instance_count> <output_dir> [abs_path:False]\n"
+            )
+            sys.exit(0)
+        elif args.mode == 'j_create_all':
+            try:
+                root: str = args.arg0
+                instance_count: int = int(args.arg1)
+                output_dir: str = args.arg2
+                abs_path: bool = bool(args.arg3)
+                recursive: bool = bool(args.arg4)
+            except (TypeError, ValueError):
+                print("[ERROR] Invalid or missing arguments for 'j_create_all'.")
+                p_job_utility.print_help()
+                sys.exit(1)
+
+            # Replace this with your actual function call
+            RunJobUtility.run_make_jobs_all(root, instance_count, output_dir, abs_path, recursive)
+        elif args.mode == 'j_create_ext':
+            try:
+                root: str = args.arg0
+                instance_count: int = int(args.arg1)
+                ext_arg = args.arg2
+                extensions : [str] = [e if e.startswith(".") else "." + e for e in ext_arg.replace(",", " ").split()]
+                output_dir: str = args.arg3
+                abs_path: bool = bool(args.arg4)
+                recursive: bool = bool(args.arg5)
+            except (TypeError, ValueError):
+                print("[ERROR] Invalid or missing arguments for 'j_create_ext'.")
+                p_job_utility.print_help()
+                sys.exit(1)
+
+            # Replace this with your actual function call
+            RunJobUtility.run_make_jobs_ext(root, instance_count, extensions, output_dir, abs_path, recursive)
+        elif args.mode == 'j_create_dirs':
+            try:
+                root: str = args.arg0
+                instance_count: int = int(args.arg1)
+                output_dir: str = args.arg2
+                abs_path: bool = bool(args.arg3)
+            except (TypeError, ValueError):
+                print("[ERROR] Invalid or missing arguments for 'j_create_dirs'.")
+                p_job_utility.print_help()
+                sys.exit(1)
+
+            # Replace this with your actual function call
+            RunJobUtility.run_make_jobs_dirs(root, instance_count, output_dir, abs_path)
+
+        else:
+            print("[ERROR] Invalid mode for job_utility.")
+            p_job_utility.print_help()
+            sys.exit(1)
+
     else:
         parser.print_help()
         sys.exit(1)
+
+
+
 
 
 if __name__ == '__main__':

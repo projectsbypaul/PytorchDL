@@ -2,12 +2,18 @@ import numpy as np
 import os
 import torch
 from typing import List
+
+from markdown.extensions.extra import extensions
+
 from dl_torch.data_utility.InteractiveDataset import InteractiveDataset
 from dl_torch.data_utility import DataParsing
 from utility.data_exchange import cppIOexcavator
 from visualization import color_templates
 from pathlib import Path
 import gc
+import zipfile
+import shutil
+from utility.job_utility import job_creation
 
 def __sub_Dataset_from_target_dir_default(target_dir: str, class_list, class_lot, index_lot):
 
@@ -603,11 +609,49 @@ def batch_ABC_sub_Datasets(source_dir: str, target_dir: str, dataset_name: str, 
             torch.cuda.empty_cache()
 
 
+def compressed_segment_dir_to_dataset_from_job(zip_source_dir, job_file : str, workspace_dir :  str, template : str = "default", batch_count = 1):
+
+    job_targets = DataParsing.read_job_file(job_file)
+    job_targets = [os.path.join(zip_source_dir, entry) for entry in job_targets]
+
+    compressed_segment_dir_to_dataset(job_targets, workspace_dir, template, batch_count)
+
+
+def compressed_segment_dir_to_dataset(segment_dir_zip : [str], workspace_dir, template : str = "default", batch_count = 1):
+
+    for seg_dir in segment_dir_zip:
+        unpack_dir = os.path.join(workspace_dir, "unpacked_files")
+
+        print(f"Starting extraction of {os.path.split(seg_dir)[1]}")
+
+        with zipfile.ZipFile(seg_dir, 'r') as zf:
+            zf.extractall(unpack_dir)
+
+        print(f"{os.path.split(seg_dir)[1]} was unpacked to {unpack_dir}")
+
+        torch_dir = os.path.join(workspace_dir, "torch_files")
+        if not os.path.exists(torch_dir): os.mkdir(torch_dir)
+
+        create_ABC_sub_Dataset(unpack_dir, torch_dir, 2, template)
+
+        shards_dir = os.path.join(workspace_dir, "shards")
+        if not os.path.exists(shards_dir): os.mkdir(shards_dir)
+
+        _, zip_filename = os.path.split(seg_dir)
+        zip_filename = zip_filename.split('.')
+        batch_ABC_sub_Datasets(torch_dir, shards_dir, zip_filename[0], batch_count)
+
+        shutil.rmtree(torch_dir)
+        shutil.rmtree(unpack_dir)
+
+
 def main():
-    segment_dir=r"H:\ABC\ABC_Benchmark\Outputs_Benchmark"
-    torch_dir=r"H:\ABC\ABC_Benchmark\torch_benchmark\inside_outside"
-    job_file = r"H:\ABC\ABC_Benchmark\torch_job\Instance001.job"
-    create_ABC_sub_Dataset_from_job(job_file, segment_dir, torch_dir, 2, "inside_outside" )
+
+    job_file = r"W:\hpc_workloads\hpc_datasets\jobs_Block_A\Instance001.job"
+    workspace = r"W:\hpc_workloads\hpc_datasets\Block_A\train_A_10000_16_pd0_bw12_vs2_20250825-084440\workspace"
+    source = r"W:\hpc_workloads\hpc_datasets\Block_A\train_A_10000_16_pd0_bw12_vs2_20250825-084440\output_dir"
+
+
 
 if __name__ == "__main__":
     main()

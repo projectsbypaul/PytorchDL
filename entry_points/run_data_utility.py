@@ -9,6 +9,11 @@ class RunABCHelperFunctions:
         return 0
 
     @staticmethod
+    def run_compressed_segment_dir_to_dataset_from_job(zip_source_dir, job_file : str, workspace_dir :  str, template : str, batch_count):
+        AnnotationForSegmentationABC.compressed_segment_dir_to_dataset_from_job(zip_source_dir, job_file, workspace_dir, template, batch_count)
+        return 0
+
+    @staticmethod
     def run_batch_ABC_sub_Datasets(source_dir : str, target_dir: str , dataset_name : str, batch_count : int):
         AnnotationForSegmentationABC.batch_ABC_sub_Datasets(source_dir, target_dir, dataset_name, batch_count)
         return 0
