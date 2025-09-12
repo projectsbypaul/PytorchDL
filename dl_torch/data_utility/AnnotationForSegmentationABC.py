@@ -621,28 +621,42 @@ def compressed_segment_dir_to_dataset(segment_dir_zip : [str], workspace_dir, te
 
     for seg_dir in segment_dir_zip:
         unpack_dir = os.path.join(workspace_dir, "unpacked_files")
+        torch_dir = os.path.join(workspace_dir, "torch_files")
+        shards_dir = os.path.join(workspace_dir, "shards")
+
+        if not os.path.exists(torch_dir): os.mkdir(torch_dir)
+        if not os.path.exists(shards_dir): os.mkdir(shards_dir)
 
         print(f"Starting extraction of {os.path.split(seg_dir)[1]}")
 
-        with zipfile.ZipFile(seg_dir, 'r') as zf:
-            zf.extractall(unpack_dir)
+        try:
+            with zipfile.ZipFile(seg_dir, 'r') as zf:
+                zf.extractall(unpack_dir)
+            print(f"{os.path.split(seg_dir)[1]} was unpacked to {unpack_dir}")
+        except Exception as e:
+            print(f"[ERROR] Failed to extract {seg_dir}: {e}")
+            continue  # skip this archive, move on
 
-        print(f"{os.path.split(seg_dir)[1]} was unpacked to {unpack_dir}")
+        # try subset creation
+        try:
+            create_ABC_sub_Dataset(unpack_dir, torch_dir, 2, template)
+        except Exception as e:
+            print(f"[ERROR] create_ABC_sub_Dataset failed for {seg_dir}: {e}")
+            shutil.rmtree(unpack_dir, ignore_errors=True)
+            shutil.rmtree(torch_dir, ignore_errors=True)
+            continue  # skip batching, move to next archive
 
-        torch_dir = os.path.join(workspace_dir, "torch_files")
-        if not os.path.exists(torch_dir): os.mkdir(torch_dir)
+        # try batching
+        try:
+            _, zip_filename = os.path.split(seg_dir)
+            zip_filename = zip_filename.split('.')[0]
+            batch_ABC_sub_Datasets(torch_dir, shards_dir, zip_filename, batch_count)
+        except Exception as e:
+            print(f"[ERROR] batch_ABC_sub_Datasets failed for {seg_dir}: {e}")
 
-        create_ABC_sub_Dataset(unpack_dir, torch_dir, 2, template)
-
-        shards_dir = os.path.join(workspace_dir, "shards")
-        if not os.path.exists(shards_dir): os.mkdir(shards_dir)
-
-        _, zip_filename = os.path.split(seg_dir)
-        zip_filename = zip_filename.split('.')
-        batch_ABC_sub_Datasets(torch_dir, shards_dir, zip_filename[0], batch_count)
-
-        shutil.rmtree(torch_dir)
-        shutil.rmtree(unpack_dir)
+        # cleanup (always)
+        shutil.rmtree(torch_dir, ignore_errors=True)
+        shutil.rmtree(unpack_dir, ignore_errors=True)
 
 
 def main():
