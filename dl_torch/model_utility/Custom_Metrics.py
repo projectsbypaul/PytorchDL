@@ -1,9 +1,16 @@
 import torch
 
-def voxel_accuracy(output, target):
+
+def voxel_accuracy(output, target, ignore_index=None):
     preds = torch.argmax(output, dim=1)
-    correct = (preds == target).float()
-    return correct.sum() / correct.numel()
+    if ignore_index is not None:
+        mask = target != ignore_index
+        correct = (preds[mask] == target[mask]).float()
+        return correct.sum() / mask.sum()
+    else:
+        correct = (preds == target).float()
+        return correct.sum() / correct.numel()
+
 
 def mesh_IOU(ftm_prediction, ftm_ground_truth):
     # Convert lists to tensors if necessary

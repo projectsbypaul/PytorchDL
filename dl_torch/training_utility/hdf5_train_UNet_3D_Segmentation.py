@@ -15,7 +15,7 @@ from tqdm import tqdm
 
 from dl_torch.model_utility import Custom_Metrics
 from dl_torch.models.UNet3D_Segmentation import UNet3D_16EL
-from dl_torch.models.UNet3D_Segmentation import UNet_Hiblig
+from dl_torch.models.UNet3D_Segmentation import UNet_Hilbig
 from dl_torch.model_utility.Scheduler import get_linear_scheduler
 from dl_torch.data_utility.HDF5Dataset import HDF5Dataset
 
@@ -37,6 +37,40 @@ def worker_init_fn(worker_id: int):
     np.random.seed(s)
     random.seed(s)
 
+
+def normalize_batch_for_ce(data, target, n_classes):
+    """
+    Ensures:
+      data   -> float32 [N, 1, D, H, W]
+      target -> int64   [N, D, H, W]  (class indices)
+    Accepts targets that are:
+      - indices [N, D, H, W]
+      - one-hot channel-first  [N, C, D, H, W]
+      - one-hot channel-last   [N, D, H, W, C]
+    """
+    # Data channel
+    if data.ndim == 4:            # [N, D, H, W]
+        data = data.unsqueeze(1)  # -> [N, 1, D, H, W]
+    elif data.ndim != 5:
+        raise RuntimeError(f"Unexpected data shape: {tuple(data.shape)}")
+    data = data.float()
+
+    # Targets
+    if target.ndim == 4:
+        # already indices
+        pass
+    elif target.ndim == 5:
+        if target.shape[1] == n_classes:          # [N, C, D, H, W]
+            target = target.argmax(dim=1)
+        elif target.shape[-1] == n_classes:       # [N, D, H, W, C]
+            target = target.argmax(dim=-1)
+        else:
+            raise RuntimeError(f"Can't infer one-hot layout from target shape {tuple(target.shape)} "
+                               f"with n_classes={n_classes}")
+    else:
+        raise RuntimeError(f"Unexpected target shape: {tuple(target.shape)}")
+
+    return data, target.long()
 
 # ---------------------------
 # Logging
@@ -110,6 +144,7 @@ def train_model_hdf_amp(
     criterion,
     model_name: str,
     device: torch.device,
+    n_classes: int,
     backup_epoch: int = 100,
     num_epochs: int = 200,
     model_weights_loc: str | None = None,
@@ -149,8 +184,9 @@ def train_model_hdf_amp(
         tqdm.write(msg) if show_tqdm else print(msg)
 
         for data, target in tqdm(train_loader, desc="Training", leave=True, disable=not show_tqdm):
+            data, target = normalize_batch_for_ce(data, target, n_classes)
             data = data.to(device, non_blocking=True)
-            target = torch.argmax(target, dim=1).long().to(device, non_blocking=True)
+            target = target.to(device, non_blocking=True)
 
             optimizer.zero_grad(set_to_none=True)
             with autocast(device_type='cuda', enabled=(device.type == 'cuda')):
@@ -172,11 +208,15 @@ def train_model_hdf_amp(
 
         with torch.no_grad():
             for data, target in tqdm(val_loader, desc="Validation", leave=True, disable=not show_tqdm):
+                # <-- normalize exactly like in training
+                data, target = normalize_batch_for_ce(data, target, n_classes)
                 data = data.to(device, non_blocking=True)
-                target = torch.argmax(target, dim=1).long().to(device, non_blocking=True)
+                target = target.to(device, non_blocking=True)
+
                 with autocast(device_type='cuda', enabled=(device.type == 'cuda')):
                     output = model(data)
                     loss = criterion(output, target)
+
                 epoch_val_loss += float(loss.item())
                 epoch_val_acc += Custom_Metrics.voxel_accuracy(output, target)
 
@@ -221,6 +261,7 @@ def train_model_hdf(
     criterion,
     model_name: str,
     device: torch.device,
+    n_classes: int,
     backup_epoch: int = 100,
     num_epochs: int = 200,
     model_weights_loc: str | None = None,
@@ -258,8 +299,9 @@ def train_model_hdf(
         tqdm.write(msg) if show_tqdm else print(msg)
 
         for data, target in tqdm(train_loader, desc="Training", leave=True, disable=not show_tqdm):
+            data, target = normalize_batch_for_ce(data, target, n_classes)
             data = data.to(device, non_blocking=True)
-            target = torch.argmax(target, dim=1).long().to(device, non_blocking=True)
+            target = target.to(device, non_blocking=True)
 
             optimizer.zero_grad(set_to_none=True)
             output = model(data)
@@ -278,10 +320,13 @@ def train_model_hdf(
 
         with torch.no_grad():
             for data, target in tqdm(val_loader, desc="Validation", leave=True, disable=not show_tqdm):
+                data, target = normalize_batch_for_ce(data, target, n_classes)
                 data = data.to(device, non_blocking=True)
-                target = torch.argmax(target, dim=1).long().to(device, non_blocking=True)
+                target = target.to(device, non_blocking=True)
+
                 output = model(data)
                 loss = criterion(output, target)
+
                 epoch_val_loss += float(loss.item())
                 epoch_val_acc += Custom_Metrics.voxel_accuracy(output, target)
 
@@ -387,9 +432,30 @@ def training_routine_hdf5(
         case 1:
             model = UNet3D_16EL(in_channels=1, out_channels=n_classes)
         case 2:
-            model = UNet_Hiblig(in_channels=1, out_channels=n_classes)
+            model = UNet_Hilbig(in_channels=1, out_channels=n_classes)
 
+    # Build dataset once
     dataset = HDF5Dataset(hdf5_path)
+
+    # One-batch sanity test (workers=0 to avoid file-handle shenanigans)
+    test_loader = DataLoader(dataset, batch_size=min(2, len(dataset)),
+                             shuffle=False, num_workers=0, pin_memory=False)
+    data, target = next(iter(test_loader))
+    data, target = normalize_batch_for_ce(data, target, n_classes)
+    print("data:", tuple(data.shape), data.dtype)  # -> [N,1,D,H,W], float32
+    print("target:", tuple(target.shape), target.dtype)  # -> [N,D,H,W], int64
+    del test_loader  # free before creating the real loaders
+
+    # (Optional) Forward-shape sanity check
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    model.to(device).eval()
+    with torch.no_grad():
+        tiny_out = model(data.to(device)[:1])  # [1, C, D, H, W]
+    assert tiny_out.shape[1] == n_classes, \
+        f"Model out_channels={tiny_out.shape[1]} != n_classes={n_classes}"
+
+    #model back to train mode
+    model.train()
 
     # Device & training components
     log_cuda_status()
@@ -411,6 +477,7 @@ def training_routine_hdf5(
         criterion=criterion,
         model_name=model_name,
         device=device,
+        n_classes=n_classes,
         backup_epoch=backup_epochs,
         num_epochs=epochs,
         model_weights_loc=model_weights_loc,

@@ -59,7 +59,7 @@ class ConvBNReLU3D(nn.Module):
         return self.act(self.bn(self.conv(x)))
 
 
-class UNet_Hiblig(nn.Module):
+class UNet_Hilbig(nn.Module):
     """
     Hiblig U-like 3D UNet (Fig. 7a):
     1×32³ → 64×32³ → 128×16³ → 256×8³ → 128×16³ → 64×32³ → C×32³

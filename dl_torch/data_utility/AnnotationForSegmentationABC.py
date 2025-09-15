@@ -15,6 +15,59 @@ import zipfile
 import shutil
 from utility.job_utility import job_creation
 
+
+# -----------------------------
+# Helpers
+# -----------------------------
+def _normalize_for_ce_save(data: torch.Tensor, labels: torch.Tensor):
+    """
+    Normalize shapes/dtypes for CrossEntropyLoss training:
+      - data:  [N, D, H, W]     -> [N, 1, D, H, W] (float32)
+      - labels:[N, D, H, W, C]  -> [N, D, H, W]    (long), via argmax on last dim
+      - labels:[N, C, D, H, W]  -> [N, D, H, W]    (long), via argmax on dim=1
+    """
+    # Data: ensure float32 and channel-first with 1 channel
+    if data is None or labels is None:
+        return data, labels
+
+    if data.ndim == 4:
+        data = data.unsqueeze(1)  # [N, 1, D, H, W]
+    elif data.ndim == 5:
+        # assume already [N, C, D, H, W]; keep as is
+        pass
+    else:
+        raise RuntimeError(f"Unexpected data ndim={data.ndim}, shape={tuple(data.shape)}")
+
+    data = data.float()
+
+    # Labels: convert to indices [N, D, H, W]
+    if labels.ndim == 5:
+        # Could be channel-last [N, D, H, W, C] or channel-first [N, C, D, H, W]
+        # Heuristic: compare spatial dims to data's spatial dims
+        # data spatial dims:
+        _, _, D, H, W = data.shape
+        if labels.shape[1:4] == (D, H, W) and labels.shape[-1] > 1:
+            # [N, D, H, W, C] -> argmax last
+            labels = labels.argmax(dim=-1)
+        elif labels.shape[2:5] == (D, H, W) and labels.shape[1] > 1:
+            # [N, C, D, H, W] -> argmax dim=1
+            labels = labels.argmax(dim=1)
+        else:
+            # If it's one-hot but doesn't match expected layout, fall back to last dim
+            labels = labels.argmax(dim=-1)
+    elif labels.ndim == 4:
+        # already indices
+        pass
+    else:
+        raise RuntimeError(f"Unexpected labels ndim={labels.ndim}, shape={tuple(labels.shape)}")
+
+    labels = labels.long()
+    return data, labels
+
+
+# -----------------------------
+# Subset builders
+# -----------------------------
 def __sub_Dataset_from_target_dir_default(target_dir: str, class_list, class_lot, index_lot):
 
     bin_array_file = target_dir + "/segmentation_data_segments.bin"
@@ -61,8 +114,6 @@ def __sub_Dataset_from_target_dir_default(target_dir: str, class_list, class_lot
                 label[int(grid_coord[0]), int(grid_coord[1]), int(grid_coord[2]), one_hot_index] += 1
                 write_count += 1
 
-        # print(f"wrote {write_count} labels for part {path}")
-
         for i, j, k in np.ndindex(label.shape[0], label.shape[1], label.shape[2]):
             voxel = label[i, j, k, :]
 
@@ -75,10 +126,6 @@ def __sub_Dataset_from_target_dir_default(target_dir: str, class_list, class_lot
                 label[i, j, k, class_lot["Void"]] = 1
                 df_voxel_count['Void'] += 1
 
-        # print(f"Writer Counter part {path} grid {grid_index}")
-        # print(df_voxel_count.keys())
-        # print(df_voxel_count.values())
-
         labels.append(label)
 
     data = torch.tensor(np.array(bin_arrays))
@@ -86,8 +133,6 @@ def __sub_Dataset_from_target_dir_default(target_dir: str, class_list, class_lot
 
     return data, labels
 
-import numpy as np
-import torch
 
 def __sub_Dataset_from_target_dir_inside_outside(
     target_dir: str,
@@ -100,7 +145,7 @@ def __sub_Dataset_from_target_dir_inside_outside(
     Vectorized rebuild of __sub_Dataset_from_target_dir_inside_outside.
 
     Returns:
-        data   : torch.FloatTensor of shape [N, D, D, D] (same dtype as loaded grids, cast to float32)
+        data   : torch.FloatTensor of shape [N, D, D, D]
         labels : torch.UInt8Tensor of shape [N, D, D, D, C] one-hot per voxel
     """
     bin_array_file   = f"{target_dir}/segmentation_data_segments.bin"
@@ -110,86 +155,67 @@ def __sub_Dataset_from_target_dir_inside_outside(
 
     # Load metadata
     origins = np.asarray(segment_data["ORIGIN_CONTAINER"]["data"], dtype=np.int64)       # [N, 3]
-    face_type_map = np.asarray(list(segment_data["FACE_TYPE_MAP"].values()))            # [F] (assumed aligned)
+    face_type_map = np.asarray(list(segment_data["FACE_TYPE_MAP"].values()))            # [F]
     face_to_index_map = np.asarray(segment_data["FACE_TO_GRID_INDEX_CONTAINER"]["data"], dtype=np.int64)  # [F, 3]
 
     # Load voxel grids
     bin_arrays = cppIOexcavator.load_segments_from_binary(bin_array_file)  # list of [D, D, D] arrays
-    num_parts = len(bin_arrays)
     num_classes = len(class_list)
 
     labels_out = []
     for part_idx, grid in enumerate(bin_arrays):
-        grid = np.asarray(grid)  # ensure ndarray
+        grid = np.asarray(grid)
         D = grid.shape[0]
-        origin = origins[part_idx]                         # [3]
-        top = origin + (D - 1)                             # inclusive bounds
+        origin = origins[part_idx]
+        top = origin + (D - 1)
 
-        # Face-based annotations: pick faces that land inside this grid’s cube
-        fc = face_to_index_map                             # [F, 3] (global coords)
+        # Faces inside this grid bounds
+        fc = face_to_index_map
         inside_mask = (fc >= origin).all(axis=1) & (fc <= top).all(axis=1)
         if inside_mask.any():
-            fc_local = fc[inside_mask] - origin            # [M, 3] local coords
-            face_types = face_type_map[inside_mask]        # [M] strings
-            # map types -> class indices
+            fc_local = fc[inside_mask] - origin            # [M, 3]
+            face_types = face_type_map[inside_mask]        # [M]
             face_cls_idx = np.fromiter((class_lot[t] for t in face_types), dtype=np.int64, count=face_types.shape[0])
         else:
-            fc_local = np.empty((0,3), dtype=np.int64)
+            fc_local = np.empty((0, 3), dtype=np.int64)
             face_cls_idx = np.empty((0,), dtype=np.int64)
 
-        # Accumulate per-voxel class vote counts
-        # counts shape: [D, D, D, C], uint16 should be enough for vote tallies
         counts = np.zeros((D, D, D, num_classes), dtype=np.uint16)
         if fc_local.size > 0:
-            xi, yi, zi = fc_local[:,0], fc_local[:,1], fc_local[:,2]
+            xi, yi, zi = fc_local[:, 0], fc_local[:, 1], fc_local[:, 2]
             ci = face_cls_idx
-            # Multiple faces may map to same voxel/class -> use add.at for safe accumulation
             np.add.at(counts, (xi, yi, zi, ci), 1)
 
-        # Resolve face votes -> one-hot where present
-        max_vals = counts.max(axis=-1)                     # [D, D, D]
-        max_idx  = counts.argmax(axis=-1)                  # [D, D, D]
+        max_vals = counts.max(axis=-1)
+        max_idx = counts.argmax(axis=-1)
         has_face = max_vals > 0
 
-        # Prepare final one-hot label volume (compact dtype)
         label = np.zeros((D, D, D, num_classes), dtype=np.uint8)
-
         if has_face.any():
             xi, yi, zi = np.where(has_face)
             label[xi, yi, zi, max_idx[has_face]] = 1
 
-        # Fill remaining voxels using SDF sign
         unlabeled = ~has_face
         if epsilon > 0:
             neg_mask = (grid < -epsilon) & unlabeled
             pos_mask = (grid >  epsilon) & unlabeled
-            zero_mask = (~neg_mask) & (~pos_mask) & unlabeled  # |grid| <= eps
+            zero_mask = (~neg_mask) & (~pos_mask) & unlabeled
         else:
             neg_mask = (grid < 0) & unlabeled
             pos_mask = (grid > 0) & unlabeled
             zero_mask = (grid == 0) & unlabeled
 
-        # Require "Inside" and "Outside" in class_lot
         inside_idx  = class_lot["Inside"]
         outside_idx = class_lot["Outside"]
         if neg_mask.any():
             label[neg_mask, inside_idx] = 1
         if pos_mask.any():
             label[pos_mask, outside_idx] = 1
-
-        # Handle true zeros deterministically:
-        # Option A: push zeros to nearest sign (choose Outside by default)
-        # Option B: if you have a dedicated "Surface" class, map zero_mask to that.
         if zero_mask.any():
-            # Fallback: treat as Outside (change if you prefer Inside or a "Surface" class)
             label[zero_mask, outside_idx] = 1
-            # Or, if "Surface" in class_lot:
-            # surf_idx = class_lot.get("Surface", outside_idx)
-            # label[zero_mask, surf_idx] = 1
 
         labels_out.append(label)
 
-    # Stack & convert with minimal copies
     data_np   = np.stack([np.asarray(g, dtype=np.float32) for g in bin_arrays], axis=0)  # [N, D, D, D]
     labels_np = np.stack(labels_out, axis=0)                                             # [N, D, D, D, C]
 
@@ -219,7 +245,6 @@ def __sub_Dataset_from_target_dir_edge(target_dir: str, class_list, class_lot, i
         entries = vertex.split(',')
         if len(entries) > 1:
             edge_vertex_indices.append(v_index)
-
 
     bin_arrays = cppIOexcavator.load_segments_from_binary(bin_array_file)
 
@@ -255,7 +280,7 @@ def __sub_Dataset_from_target_dir_edge(target_dir: str, class_list, class_lot, i
                 label[int(grid_coord[0]), int(grid_coord[1]), int(grid_coord[2]), one_hot_index] += 1
                 write_count += 1
 
-        #edge classification
+        # edge classification
         for vertex in edge_vertex_indices:
             vertex_on_grid = vert_to_index_map[vertex]
             if origin[0] <= vertex_on_grid[0] <= top[0] and origin[1] <= vertex_on_grid[1] <= top[1] and origin[2] <= \
@@ -266,7 +291,6 @@ def __sub_Dataset_from_target_dir_edge(target_dir: str, class_list, class_lot, i
                 one_hot_index = class_lot[type_string]
                 label[int(grid_coord[0]), int(grid_coord[1]), int(grid_coord[2]), one_hot_index] += 1
                 write_count += 1
-
 
         # inside - outside classification
         for i, j, k in np.ndindex(label.shape[0], label.shape[1], label.shape[2]):
@@ -283,10 +307,10 @@ def __sub_Dataset_from_target_dir_edge(target_dir: str, class_list, class_lot, i
                 label[i, j, k, max_index] = 1
                 df_voxel_count[index_lot[max_index]] += 1
             else:
-                if grid[i,j,k] < 0:
-                  label[i, j, k, class_lot["Inside"]] = 1
-                  df_voxel_count['Inside'] += 1
-                elif grid[i,j,k] > 0:
+                if grid[i, j, k] < 0:
+                    label[i, j, k, class_lot["Inside"]] = 1
+                    df_voxel_count['Inside'] += 1
+                elif grid[i, j, k] > 0:
                     label[i, j, k, class_lot["Outside"]] = 1
                     df_voxel_count['Outside'] += 1
                 else:
@@ -299,6 +323,7 @@ def __sub_Dataset_from_target_dir_edge(target_dir: str, class_list, class_lot, i
     labels = torch.tensor(np.array(labels))
 
     return data, labels
+
 
 def __sub_Dataset_from_target_dir_edge_only(target_dir: str, class_list, class_lot, index_lot):
 
@@ -320,7 +345,6 @@ def __sub_Dataset_from_target_dir_edge_only(target_dir: str, class_list, class_l
         entries = vertex.split(',')
         if len(entries) > 1:
             edge_vertex_indices.append(v_index)
-
 
     bin_arrays = cppIOexcavator.load_segments_from_binary(bin_array_file)
 
@@ -356,7 +380,7 @@ def __sub_Dataset_from_target_dir_edge_only(target_dir: str, class_list, class_l
                 label[int(grid_coord[0]), int(grid_coord[1]), int(grid_coord[2]), one_hot_index] += 1
                 write_count += 1
 
-        #edge classification
+        # edge classification
         for vertex in edge_vertex_indices:
             vertex_on_grid = vert_to_index_map[vertex]
             if origin[0] <= vertex_on_grid[0] <= top[0] and origin[1] <= vertex_on_grid[1] <= top[1] and origin[2] <= \
@@ -367,7 +391,6 @@ def __sub_Dataset_from_target_dir_edge_only(target_dir: str, class_list, class_l
                 one_hot_index = class_lot[type_string]
                 label[int(grid_coord[0]), int(grid_coord[1]), int(grid_coord[2]), one_hot_index] += 1
                 write_count += 1
-
 
         # inside - outside classification
         for i, j, k in np.ndindex(label.shape[0], label.shape[1], label.shape[2]):
@@ -384,14 +407,14 @@ def __sub_Dataset_from_target_dir_edge_only(target_dir: str, class_list, class_l
                 label[i, j, k, max_index] = 1
                 df_voxel_count[index_lot[max_index]] += 1
             else:
-                if grid[i,j,k] < 0:
-                  label[i, j, k, class_lot["Inside"]] = 1
-                  df_voxel_count['Inside'] += 1
-                elif grid[i,j,k] > 0:
+                if grid[i, j, k] < 0:
+                    label[i, j, k, class_lot["Inside"]] = 1
+                    df_voxel_count['Inside'] += 1
+                elif grid[i, j, k] > 0:
                     label[i, j, k, class_lot["Outside"]] = 1
                     df_voxel_count['Outside'] += 1
                 else:
-                    print(f"Error: Unassign able voxel found val: {grid[i,j,k]}")
+                    print(f"Error: Unassign able voxel found val: {grid[i, j, k]}")
                     continue
 
         labels.append(label)
@@ -401,6 +424,10 @@ def __sub_Dataset_from_target_dir_edge_only(target_dir: str, class_list, class_l
 
     return data, labels
 
+
+# -----------------------------
+# Dataset creators
+# -----------------------------
 def create_ABC_sub_Dataset(segment_dir : str, torch_dir : str, n_min_files :  int, template: str = "default"):
 
     # Set up dictionary
@@ -413,14 +440,11 @@ def create_ABC_sub_Dataset(segment_dir : str, torch_dir : str, n_min_files :  in
         "edge_only"       : 3
     }
 
-
-
     match template_list[template]:
         case 0 : color_template = color_templates.default_color_template_abc()
         case 1 : color_template = color_templates.edge_color_template_abc()
         case 2 : color_template = color_templates.inside_outside_color_template_abc()
         case 3 : color_template = color_templates.edge_only_color_template_abc()
-
 
     if template is not None:
         class_keys = list(color_template.keys())
@@ -445,13 +469,18 @@ def create_ABC_sub_Dataset(segment_dir : str, torch_dir : str, n_min_files :  in
                 data, labels = None, None
 
                 match template_list[template]:
-
-                    case 0: data, labels = __sub_Dataset_from_target_dir_default(full_path, class_list, class_lot, index_lot)
-                    case 1: data, labels = __sub_Dataset_from_target_dir_edge(full_path, class_list, class_lot, index_lot)
-                    case 2: data, labels = __sub_Dataset_from_target_dir_inside_outside(full_path, class_list, class_lot, index_lot)
-                    case 3: data, labels = __sub_Dataset_from_target_dir_edge_only(full_path, class_list, class_lot, index_lot)
+                    case 0:
+                        data, labels = __sub_Dataset_from_target_dir_default(full_path, class_list, class_lot, index_lot)
+                    case 1:
+                        data, labels = __sub_Dataset_from_target_dir_edge(full_path, class_list, class_lot, index_lot)
+                    case 2:
+                        data, labels = __sub_Dataset_from_target_dir_inside_outside(full_path, class_list, class_lot, index_lot)
+                    case 3:
+                        data, labels = __sub_Dataset_from_target_dir_edge_only(full_path, class_list, class_lot, index_lot)
 
                 if data is not None and labels is not None:
+                    # Normalize for CE (indices for labels, channel for data)
+                    data, labels = _normalize_for_ce_save(data, labels)
 
                     sub_dataset = InteractiveDataset(data, labels, class_lot, set_name=path)
                     sub_dataset.save_dataset(os.path.join(torch_dir, path + ".torch"))
@@ -513,30 +542,31 @@ def create_ABC_sub_Dataset_from_job(job_file: str, segment_dir : str, torch_dir 
                 match template_list[template]:
 
                     case 0:
-                        data, labels = __sub_Dataset_from_target_dir_default(full_path, class_list, class_lot,
-                                                                             index_lot)
+                        data, labels = __sub_Dataset_from_target_dir_default(full_path, class_list, class_lot, index_lot)
                     case 1:
                         data, labels = __sub_Dataset_from_target_dir_edge(full_path, class_list, class_lot, index_lot)
                     case 2:
-                        data, labels = __sub_Dataset_from_target_dir_inside_outside(full_path, class_list, class_lot,
-                                                                                    index_lot)
+                        data, labels = __sub_Dataset_from_target_dir_inside_outside(full_path, class_list, class_lot, index_lot)
                     case 3:
-                        data, labels = __sub_Dataset_from_target_dir_edge_only(full_path, class_list, class_lot,
-                                                                                    index_lot)
+                        data, labels = __sub_Dataset_from_target_dir_edge_only(full_path, class_list, class_lot, index_lot)
 
                 if data is not None and labels is not None:
+                    # !! removed incorrect permutation of labels
+                    # labels = labels.permute(0, 4, 1, 2, 3)
 
-                    labels = labels.permute(0, 4, 1, 2, 3)
+                    # Normalize for CE (indices for labels, channel for data)
+                    data, labels = _normalize_for_ce_save(data, labels)
 
                     sub_dataset = InteractiveDataset(data, labels, class_lot, set_name=target)
-
                     sub_dataset.save_dataset(os.path.join(torch_dir, target + ".torch"))
 
                 else:
-                    
                     print("Error: Data Annotation failed...")
 
 
+# -----------------------------
+# Batching / Zips
+# -----------------------------
 def batch_ABC_sub_Datasets(source_dir: str, target_dir: str, dataset_name: str, batch_count: int):
     src = Path(source_dir)
     out = Path(target_dir)
@@ -587,7 +617,6 @@ def batch_ABC_sub_Datasets(source_dir: str, target_dir: str, dataset_name: str, 
                 if torch.cuda.is_available():
                     torch.cuda.empty_cache()
             except Exception as e:
-                # Don't index into file_paths with i; use the actual fp
                 print(f"merge failed on file '{fp}': {e}")
                 raise
 
@@ -664,7 +693,6 @@ def main():
     job_file = r"W:\hpc_workloads\hpc_datasets\jobs_Block_A\Instance001.job"
     workspace = r"W:\hpc_workloads\hpc_datasets\Block_A\train_A_10000_16_pd0_bw12_vs2_20250825-084440\workspace"
     source = r"W:\hpc_workloads\hpc_datasets\Block_A\train_A_10000_16_pd0_bw12_vs2_20250825-084440\output_dir"
-
 
 
 if __name__ == "__main__":
