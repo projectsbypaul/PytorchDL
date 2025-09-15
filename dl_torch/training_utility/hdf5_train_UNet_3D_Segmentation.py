@@ -2,6 +2,8 @@ import os
 import time
 import platform
 import random
+from platform import architecture
+
 import numpy as np
 
 import torch
@@ -13,6 +15,7 @@ from tqdm import tqdm
 
 from dl_torch.model_utility import Custom_Metrics
 from dl_torch.models.UNet3D_Segmentation import UNet3D_16EL
+from dl_torch.models.UNet3D_Segmentation import UNet_Hiblig
 from dl_torch.model_utility.Scheduler import get_linear_scheduler
 from dl_torch.data_utility.HDF5Dataset import HDF5Dataset
 
@@ -333,6 +336,7 @@ def training_routine_hdf5(
     show_tqdm: bool = False,
     n_classes: int = 10,
     model_seed: int | None = None,
+    model_type : str = "default"
 ):
     # -----------------------------------------------------------------------------
     #WARNING: Determinism in this training pipeline
@@ -371,7 +375,20 @@ def training_routine_hdf5(
         seed_for_loaders = None
 
     # Model & data
-    model = UNet3D_16EL(in_channels=1, out_channels=n_classes)
+    model_architecture = {
+        "default": 0,
+        "UNet_16EL": 1,
+        "UNet_Hilbig": 2,
+    }
+
+    match model_architecture[model_type]:
+        case 0:
+            model = UNet3D_16EL(in_channels=1, out_channels=n_classes)
+        case 1:
+            model = UNet3D_16EL(in_channels=1, out_channels=n_classes)
+        case 2:
+            model = UNet_Hiblig(in_channels=1, out_channels=n_classes)
+
     dataset = HDF5Dataset(hdf5_path)
 
     # Device & training components
