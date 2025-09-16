@@ -72,6 +72,7 @@ def normalize_batch_for_ce(data, target, n_classes):
 
     return data, target.long()
 
+
 # ---------------------------
 # Logging
 # ---------------------------
@@ -83,6 +84,19 @@ def log_cuda_status():
         print(torch.cuda.get_device_name(0))
         print(f"Allocated Memory: {torch.cuda.memory_allocated() / 1024 ** 2:.2f} MB")
         print(f"Max Allocated Memory: {torch.cuda.max_memory_allocated() / 1024 ** 2:.2f} MB")
+
+
+# ---------------------------
+# Helpers
+# ---------------------------
+def make_run_name(model_name: str, scheduler, batch_size: int) -> str:
+    # Assumes scheduler exposes get_last_lr() and has .final_lr (as in your get_linear_scheduler)
+    return (
+        f"{model_name}"
+        f"_lr[{scheduler.get_last_lr()[0]}]"
+        f"_lrdc[{scheduler.final_lr / scheduler.get_last_lr()[0]:.0e}]"
+        f"_bs{batch_size}"
+    )
 
 
 # ---------------------------
@@ -134,9 +148,9 @@ def make_loaders(dataset,
 
 
 # ---------------------------
-# Training loops
+# Unified Training (AMP on/off)
 # ---------------------------
-def train_model_hdf_amp(
+def train_model_hdf_unified(
     model,
     dataset,
     optimizer,
@@ -145,6 +159,8 @@ def train_model_hdf_amp(
     model_name: str,
     device: torch.device,
     n_classes: int,
+    *,
+    use_amp: bool = False,
     backup_epoch: int = 100,
     num_epochs: int = 200,
     model_weights_loc: str | None = None,
@@ -154,6 +170,7 @@ def train_model_hdf_amp(
     workers: int = 1,
     show_tqdm: bool = False,
     seed: int | None = None,
+    resume_epoch: int | None = None,
 ):
     train_loader, val_loader, train_size, val_size = make_loaders(
         dataset, split, batch_size, val_batch_factor, workers, seed
@@ -162,20 +179,48 @@ def train_model_hdf_amp(
     print(f"Train size: {train_size}, Val size: {val_size}")
     model.to(device)
 
-    scaler = GradScaler(enabled=(device.type == 'cuda'))
+    # AMP scaler is active only if CUDA + use_amp
+    scaler = GradScaler(enabled=(device.type == "cuda" and use_amp))
 
-    run_name = (
-        f"{model_name}"
-        f"_lr[{scheduler.get_last_lr()[0]}]"
-        f"_lrdc[{scheduler.final_lr / scheduler.get_last_lr()[0]:.0e}]"
-        f"_bs{batch_size}"
-    )
+    run_name = make_run_name(model_name, scheduler, batch_size)
     print(f"Model: {run_name}")
 
     log_root = f"/logs/tensorboard/runs/{run_name}"
     writer = SummaryWriter(log_root)
 
-    for epoch in range(num_epochs):
+    # -------- Resume logic --------
+    start_epoch_idx = 0  # 0-based loop index
+    if resume_epoch is not None and model_weights_loc:
+        weights_path = model_weights_loc.format(
+            model_name=model_name, run_name=run_name, epoch=resume_epoch
+        )
+        ckpt_path = weights_path.replace(".pth", ".ckpt")
+
+        if os.path.exists(ckpt_path):
+            print(f"Resuming from FULL checkpoint: {ckpt_path}")
+            checkpoint = torch.load(ckpt_path, map_location=device)
+            model.load_state_dict(checkpoint["model_state_dict"])
+            optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+            scheduler.load_state_dict(checkpoint["scheduler_state_dict"])
+            if use_amp and "scaler_state_dict" in checkpoint and scaler is not None:
+                scaler.load_state_dict(checkpoint["scaler_state_dict"])
+            start_epoch_idx = int(checkpoint.get("epoch_completed", resume_epoch))
+        elif os.path.exists(weights_path):
+            print(f"Resuming from WEIGHTS ONLY: {weights_path}")
+            state = torch.load(weights_path, map_location=device)
+            model.load_state_dict(state)
+            # Best-effort align LR schedule
+            for _ in range(max(0, resume_epoch - 1)):
+                scheduler.step()
+            start_epoch_idx = resume_epoch
+        else:
+            print(
+                f"WARNING: No checkpoint or weights found for epoch={resume_epoch} at\n"
+                f"  {ckpt_path}\n  {weights_path}\nStarting from scratch."
+            )
+    # --------------------------------
+
+    for epoch in range(start_epoch_idx, num_epochs):
         epoch_start = time.time()
         model.train()
         epoch_train_loss, epoch_train_acc = 0.0, 0.0
@@ -189,13 +234,18 @@ def train_model_hdf_amp(
             target = target.to(device, non_blocking=True)
 
             optimizer.zero_grad(set_to_none=True)
-            with autocast(device_type='cuda', enabled=(device.type == 'cuda')):
+            if use_amp and device.type == "cuda":
+                with autocast(device_type="cuda", enabled=True):
+                    output = model(data)
+                    loss = criterion(output, target)
+                scaler.scale(loss).backward()
+                scaler.step(optimizer)
+                scaler.update()
+            else:
                 output = model(data)
                 loss = criterion(output, target)
-
-            scaler.scale(loss).backward()
-            scaler.step(optimizer)
-            scaler.update()
+                loss.backward()
+                optimizer.step()
 
             epoch_train_loss += float(loss.item())
             epoch_train_acc += Custom_Metrics.voxel_accuracy(output, target)
@@ -208,12 +258,15 @@ def train_model_hdf_amp(
 
         with torch.no_grad():
             for data, target in tqdm(val_loader, desc="Validation", leave=True, disable=not show_tqdm):
-                # <-- normalize exactly like in training
                 data, target = normalize_batch_for_ce(data, target, n_classes)
                 data = data.to(device, non_blocking=True)
                 target = target.to(device, non_blocking=True)
 
-                with autocast(device_type='cuda', enabled=(device.type == 'cuda')):
+                if use_amp and device.type == "cuda":
+                    with autocast(device_type="cuda", enabled=True):
+                        output = model(data)
+                        loss = criterion(output, target)
+                else:
                     output = model(data)
                     loss = criterion(output, target)
 
@@ -238,134 +291,43 @@ def train_model_hdf_amp(
 
         torch.cuda.empty_cache()
 
+        scheduler.step()
+        print(f"Epoch duration: {time.time() - epoch_start:.2f} seconds")
+
         if ((epoch + 1) % backup_epoch) == 0 and model_weights_loc:
+            # 1) Legacy weights
             backup_name = model_weights_loc.format(
                 model_name=model_name, run_name=run_name, epoch=epoch + 1
             )
             os.makedirs(os.path.dirname(backup_name), exist_ok=True)
             torch.save(model.state_dict(), backup_name)
 
-        scheduler.step()
-        print(f"Epoch duration: {time.time() - epoch_start:.2f} seconds")
+            # 2) Full checkpoint (conditionally include scaler state)
+            ckpt_path = backup_name.replace(".pth", ".ckpt")
+            ckpt = {
+                "epoch_completed": epoch + 1,
+                "model_state_dict": model.state_dict(),
+                "optimizer_state_dict": optimizer.state_dict(),
+                "scheduler_state_dict": scheduler.state_dict(),
+                "run_name": run_name,
+                "model_name": model_name,
+                "batch_size": batch_size,
+                "n_classes": n_classes,
+                "use_amp": use_amp,
+            }
+            if use_amp and scaler is not None:
+                ckpt["scaler_state_dict"] = scaler.state_dict()
+            torch.save(ckpt, ckpt_path)
 
     writer.close()
     print("Finished Training")
-    return model
-
-
-def train_model_hdf(
-    model,
-    dataset,
-    optimizer,
-    scheduler,
-    criterion,
-    model_name: str,
-    device: torch.device,
-    n_classes: int,
-    backup_epoch: int = 100,
-    num_epochs: int = 200,
-    model_weights_loc: str | None = None,
-    split: float = 0.9,
-    batch_size: int = 16,
-    val_batch_factor: int = 1,
-    workers: int = 1,
-    show_tqdm: bool = False,
-    seed: int | None = None,
-):
-    train_loader, val_loader, train_size, val_size = make_loaders(
-        dataset, split, batch_size, val_batch_factor, workers, seed
-    )
-
-    print(f"Train size: {train_size}, Val size: {val_size}")
-    model.to(device)
-
-    run_name = (
-        f"{model_name}"
-        f"_lr[{scheduler.get_last_lr()[0]}]"
-        f"_lrdc[{scheduler.final_lr / scheduler.get_last_lr()[0]:.0e}]"
-        f"_bs{batch_size}"
-    )
-    print(f"Model: {run_name}")
-
-    log_root = f"/logs/tensorboard/runs/{run_name}"
-    writer = SummaryWriter(log_root)
-
-    for epoch in range(num_epochs):
-        epoch_start = time.time()
-        model.train()
-        epoch_train_loss, epoch_train_acc = 0.0, 0.0
-
-        msg = f"\n[Epoch {epoch + 1}/{num_epochs}] Training..."
-        tqdm.write(msg) if show_tqdm else print(msg)
-
-        for data, target in tqdm(train_loader, desc="Training", leave=True, disable=not show_tqdm):
-            data, target = normalize_batch_for_ce(data, target, n_classes)
-            data = data.to(device, non_blocking=True)
-            target = target.to(device, non_blocking=True)
-
-            optimizer.zero_grad(set_to_none=True)
-            output = model(data)
-            loss = criterion(output, target)
-            loss.backward()
-            optimizer.step()
-
-            epoch_train_loss += float(loss.item())
-            epoch_train_acc += Custom_Metrics.voxel_accuracy(output, target)
-
-        # Validation
-        model.eval()
-        epoch_val_loss, epoch_val_acc = 0.0, 0.0
-        msg = f"\n[Epoch {epoch + 1}/{num_epochs}] Validating..."
-        tqdm.write(msg) if show_tqdm else print(msg)
-
-        with torch.no_grad():
-            for data, target in tqdm(val_loader, desc="Validation", leave=True, disable=not show_tqdm):
-                data, target = normalize_batch_for_ce(data, target, n_classes)
-                data = data.to(device, non_blocking=True)
-                target = target.to(device, non_blocking=True)
-
-                output = model(data)
-                loss = criterion(output, target)
-
-                epoch_val_loss += float(loss.item())
-                epoch_val_acc += Custom_Metrics.voxel_accuracy(output, target)
-
-        avg_train_loss = epoch_train_loss / len(train_loader)
-        avg_train_acc = epoch_train_acc / len(train_loader)
-        avg_val_loss = epoch_val_loss / len(val_loader)
-        avg_val_acc = epoch_val_acc / len(val_loader)
-
-        print(f"\n[Epoch {epoch + 1}/{num_epochs}] Summary:")
-        print(f"Train Loss: {avg_train_loss:.6f} | Train Acc: {avg_train_acc:.2%}")
-        print(f"Val   Loss: {avg_val_loss:.6f} | Val   Acc: {avg_val_acc:.2%}")
-        print(f"Learning Rate: {scheduler.get_last_lr()[0]:.4e}")
-
-        writer.add_scalar("Loss/Train", avg_train_loss, epoch)
-        writer.add_scalar("Accuracy/Train", avg_train_acc, epoch)
-        writer.add_scalar("Loss/Val", avg_val_loss, epoch)
-        writer.add_scalar("Accuracy/Val", avg_val_acc, epoch)
-
-        torch.cuda.empty_cache()
-
-        if ((epoch + 1) % backup_epoch) == 0 and model_weights_loc:
-            backup_name = model_weights_loc.format(
-                model_name=model_name, run_name=run_name, epoch=epoch + 1
-            )
-            os.makedirs(os.path.dirname(backup_name), exist_ok=True)
-            torch.save(model.state_dict(), backup_name)
-
-        scheduler.step()
-        print(f"Epoch duration: {time.time() - epoch_start:.2f} seconds")
-
-    writer.close()
-    print("Finished Training")
-    return model
+    return model, run_name, scaler if use_amp else None
 
 
 # ---------------------------
-# Orchestration
+# Orchestration (as requested name)
 # ---------------------------
-def training_routine_hdf5(
+def train_modell_hdf5(
     model_name: str,
     hdf5_path: str,
     model_weights_loc: str,
@@ -381,33 +343,14 @@ def training_routine_hdf5(
     show_tqdm: bool = False,
     n_classes: int = 10,
     model_seed: int | None = None,
-    model_type : str = "default"
+    model_type: str = "default",
+    resume_epoch: int | None = None,
 ):
     # -----------------------------------------------------------------------------
-    #WARNING: Determinism in this training pipeline
+    # WARNING: Determinism in this training pipeline
     #
-    # - The current setup (seeded RNGs, deterministic split + shuffling, seeded
-    #   workers) guarantees reproducible **data order** and **model initialization**.
-    #
-    # - However, this does NOT guarantee true **bitwise determinism** of training:
-    #     • CUDA kernels like max-pooling and some loss ops may still be
-    #       nondeterministic, depending on the backend.
-    #     • Using multiple DataLoader workers (>0) introduces non-deterministic
-    #       interleaving, even if worker_init_fn is seeded.
-    #     • AMP (mixed precision) is inherently nondeterministic due to reduced
-    #       precision and scaling heuristics.
-    #     • Different GPUs, PyTorch/CUDA/cuDNN versions, or even drivers can change
-    #       numerical results.
-    #
-    # - For strict bitwise reproducibility you would need:
-    #     • torch.use_deterministic_algorithms(True)
-    #     • num_workers=0
-    #     • use_amp=False
-    #     • deterministic-safe ops only (no max-pooling with indices, etc.)
-    #
-    # In practice: the current implementation should yield reproducible *statistical*
-    # results (same splits, same shuffles, same seeds), but may not produce identical
-    # weights or losses across runs.
+    # - This setup seeds RNGs and can fix split/shuffle order. It does NOT guarantee
+    #   bitwise determinism due to CUDA kernels, AMP, drivers, etc.
     # -----------------------------------------------------------------------------
 
     # Conditional determinism
@@ -442,19 +385,17 @@ def training_routine_hdf5(
                              shuffle=False, num_workers=0, pin_memory=False)
     data, target = next(iter(test_loader))
     data, target = normalize_batch_for_ce(data, target, n_classes)
-    print("data:", tuple(data.shape), data.dtype)  # -> [N,1,D,H,W], float32
+    print("data:", tuple(data.shape), data.dtype)      # -> [N,1,D,H,W], float32
     print("target:", tuple(target.shape), target.dtype)  # -> [N,D,H,W], int64
     del test_loader  # free before creating the real loaders
 
-    # (Optional) Forward-shape sanity check
+    # Forward-shape sanity check
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     model.to(device).eval()
     with torch.no_grad():
         tiny_out = model(data.to(device)[:1])  # [1, C, D, H, W]
     assert tiny_out.shape[1] == n_classes, \
         f"Model out_channels={tiny_out.shape[1]} != n_classes={n_classes}"
-
-    #model back to train mode
     model.train()
 
     # Device & training components
@@ -467,9 +408,7 @@ def training_routine_hdf5(
 
     print(f"Using AMP: {use_amp}")
 
-    train_fn = train_model_hdf_amp if use_amp else train_model_hdf
-
-    model = train_fn(
+    model, run_name, scaler = train_model_hdf_unified(
         model=model,
         dataset=dataset,
         optimizer=optimizer,
@@ -478,6 +417,7 @@ def training_routine_hdf5(
         model_name=model_name,
         device=device,
         n_classes=n_classes,
+        use_amp=use_amp,                 # single flag controls AMP
         backup_epoch=backup_epochs,
         num_epochs=epochs,
         model_weights_loc=model_weights_loc,
@@ -486,48 +426,70 @@ def training_routine_hdf5(
         val_batch_factor=val_batch_factor,
         workers=workers,
         show_tqdm=show_tqdm,
-        seed=seed_for_loaders,   # <- None for nondet; int for deterministic split/shuffle
+        seed=seed_for_loaders,
+        resume_epoch=resume_epoch,
     )
 
-    # Final save
-    run_name = f"{model_name}_lr[{lr}]_lrdc[{decay_order}]bs{batch_size}"
+    # Final save (weights)
+    run_name_last = f"{model_name}_lr[{lr}]_lrdc[{decay_order}]bs{batch_size}"
     model_save_name = model_weights_loc.format(
-        model_name=model_name, run_name=run_name, epoch="last"
+        model_name=model_name, run_name=run_name_last, epoch="last"
     )
     os.makedirs(os.path.dirname(model_save_name), exist_ok=True)
     torch.save(model.state_dict(), model_save_name)
+
+    # Final full checkpoint (optional)
+    ckpt_last = {
+        "epoch_completed": epochs,
+        "model_state_dict": model.state_dict(),
+        "optimizer_state_dict": optimizer.state_dict(),
+        "scheduler_state_dict": scheduler.state_dict(),
+        "run_name": run_name_last,
+        "model_name": model_name,
+        "batch_size": batch_size,
+        "n_classes": n_classes,
+        "use_amp": use_amp,
+    }
+    if use_amp and scaler is not None:
+        ckpt_last["scaler_state_dict"] = scaler.state_dict()
+    torch.save(ckpt_last, model_save_name.replace(".pth", ".ckpt"))
 
 
 def main():
     print("PyTorch:", torch.__version__)
     print("Python :", platform.python_version())
 
-    hdf5_path = r"H:\ABC\ABC_torch\ABC_training\train_500k_ks_16_pad_4_bw_5_vs_adaptive_n3\train_500k_ks_16_pad_4_bw_5_vs_adaptive_n3.hdf5"
-    model_weights_loc = "../../data/model_weights/{model_name}/{run_name}_save_{epoch}.pth"
+    hdf5_path = r"H:\ABC\ABC_torch\ABC_training\train_250k_ks_16_pad_4_bw_5_vs_adaptive_n3\dataset.hdf5"
+    model_weights_loc = r"H:\ABC\ABC_torch\temp_models/{model_name}/{run_name}_save_{epoch}.pth"
 
     # Set to 0 or None for nondeterministic behavior; >0 for deterministic split/shuffle + init.
     model_seed = 1337  # try 0 to disable determinism
 
-    model_name = "UNet3D_SDF_HDF5_workers_10_500k_ConditionalSeed"
+    model_name = "UNet_Restart"
 
-    for bs in [16, 32, 64, 128]:
-        training_routine_hdf5(
-            model_name=model_name,
-            hdf5_path=hdf5_path,
-            model_weights_loc=model_weights_loc,
-            epochs=2,
-            backup_epochs=2,
-            batch_size=bs,
-            lr=1e-4,
-            decay_order=1e-1,
-            split=0.9,
-            use_amp=True,
-            val_batch_factor=4,
-            workers=10,
-            show_tqdm=True,
-            n_classes=10,
-            model_seed=model_seed,
-        )
+    # Example: resume from a specific epoch if its checkpoint/weights exist
+    resume_from = 3  # or None to start from scratch
+
+
+    train_modell_hdf5(
+        model_name=model_name,
+        hdf5_path=hdf5_path,
+        model_weights_loc=model_weights_loc,
+        epochs=5,
+        backup_epochs=1,
+        batch_size=8,
+        lr=1e-4,
+        decay_order=1e-1,
+        split=0.9,
+        use_amp=True,
+        val_batch_factor=4,
+        workers=0,
+        show_tqdm=True,
+        n_classes=10,
+        model_seed=model_seed,
+        model_type="default",
+        resume_epoch=resume_from,   # resume if files exist
+    )
 
 
 if __name__ == "__main__":
