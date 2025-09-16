@@ -1,5 +1,5 @@
 from dl_torch.training_utility.managed_train_UNet_3D_Segmentation import training_routine
-from dl_torch.training_utility.hdf5_train_UNet_3D_Segmentation import training_routine_hdf5
+from dl_torch.training_utility.hdf5_train_UNet_3D_Segmentation import train_model_hdf5
 
 class RunTrainingUtility:
 
@@ -18,12 +18,13 @@ class RunTrainingUtility:
                      workers: int,
                      n_classes: int,
                      model_seed: int,
-                     model_type:str):
+                     model_type:str,
+                     resume_epoch: int):
 
-        training_routine_hdf5(
+        train_model_hdf5(
             model_name, hdf5_path, model_weights_loc, epochs, backup_epochs, batch_size,
             lr, decay_order, split, use_amp, val_batch_factor, workers,
-            n_classes=n_classes, model_seed=model_seed, model_type=model_type
+            n_classes=n_classes, model_seed=model_seed, model_type=model_type, resume_epoch=resume_epoch
         )
 
 

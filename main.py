@@ -55,6 +55,7 @@ def main():
     p_train_utility.add_argument('arg11', type=str, nargs='?')
     p_train_utility.add_argument('arg12', type=str, nargs='?')
     p_train_utility.add_argument('arg13', type=str, nargs='?')
+    p_train_utility.add_argument('arg14', type=str, nargs='?')
 
     # module data_utility
     p_validation_utility = subparsers.add_parser('validation_utility')
@@ -201,7 +202,12 @@ def main():
             print("  main.py train_utility train_UNet3D_16EL \\")
             print("      <model_name> <hdf5_path> <model_weights_loc> <epoch> \\")
             print("      <backup_epochs> <batch_size> <lr> <decay_order> <split> \\")
-            print("      <use_amp> <val_batch_factor> <workers> <n_classes> <model_seed>")
+            print("      <use_amp> <val_batch_factor> <workers> <n_classes> <model_seed> <ep_restart>")
+            print()
+            print("  main.py train_utility train_UNet_Hilbig \\")
+            print("      <model_name> <hdf5_path> <model_weights_loc> <epoch> \\")
+            print("      <backup_epochs> <batch_size> <lr> <decay_order> <split> \\")
+            print("      <use_amp> <val_batch_factor> <workers> <n_classes> <model_seed> <ep_restart>")
             sys.exit(0)
 
         elif args.mode == 'train_UNet_16EL':
@@ -220,6 +226,7 @@ def main():
                 workers: int = int(args.arg11)
                 n_classes: int = int(args.arg12)
                 model_seed: int = int(args.arg13)
+                ep_resume: int = int(args.arg14)
 
             except (TypeError, ValueError):
                 print("[ERROR] Invalid or missing arguments for 'create_subsets'.")
@@ -230,7 +237,7 @@ def main():
             RunTrainingUtility.run_hdf5_train_UNet_3D_Segmentation(
             model_name, hdf5_path, model_weights_loc, epoch, backup_epochs, batch_size,
             lr, decay_order, split, use_amp, val_batch_factor, workers, n_classes, model_seed,
-            model_type="UNet_16EL"
+            model_type="UNet_16EL", resume_epoch=ep_resume
         )
 
         elif args.mode == 'train_UNet_Hilbig':
@@ -249,6 +256,7 @@ def main():
                 workers: int = int(args.arg11)
                 n_classes: int = int(args.arg12)
                 model_seed: int = int(args.arg13)
+                ep_resume: int = int(args.arg14)
 
             except (TypeError, ValueError):
                 print("[ERROR] Invalid or missing arguments for 'create_subsets'.")
@@ -259,7 +267,7 @@ def main():
             RunTrainingUtility.run_hdf5_train_UNet_3D_Segmentation(
             model_name, hdf5_path, model_weights_loc, epoch, backup_epochs, batch_size,
             lr, decay_order, split, use_amp, val_batch_factor, workers, n_classes, model_seed,
-            model_type="UNet_Hilbig"
+            model_type="UNet_Hilbig", resume_epoch=ep_resume
         )
 
         else:

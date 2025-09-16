@@ -327,7 +327,7 @@ def train_model_hdf_unified(
 # ---------------------------
 # Orchestration (as requested name)
 # ---------------------------
-def train_modell_hdf5(
+def train_model_hdf5(
     model_name: str,
     hdf5_path: str,
     model_weights_loc: str,
@@ -471,7 +471,7 @@ def main():
     resume_from = 3  # or None to start from scratch
 
 
-    train_modell_hdf5(
+    train_model_hdf5(
         model_name=model_name,
         hdf5_path=hdf5_path,
         model_weights_loc=model_weights_loc,
