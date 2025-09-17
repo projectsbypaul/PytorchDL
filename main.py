@@ -284,18 +284,18 @@ def main():
                 workers: int = int(args.arg11)
                 n_classes: int = int(args.arg12)
                 model_seed: int = int(args.arg13)
-                ep_resume_raw: str | None = args.arg14
+                ep_resume: str | None = args.arg14
             except (TypeError, ValueError):
                 print("[ERROR] Invalid or missing arguments for 'train_UNet_Hilbig'.")
                 p_train_utility.print_help()
                 sys.exit(1)
 
-            ep_resume = _parse_ep_resume(ep_resume_raw)
+            ep_resume = _parse_ep_resume(ep_resume)
 
             RunTrainingUtility.run_hdf5_train_UNet_3D_Segmentation(
                 model_name, hdf5_path, model_weights_loc, epoch, backup_epochs, batch_size,
                 lr, decay_order, split, use_amp, val_batch_factor, workers, n_classes, model_seed,
-                model_type="UNet_Hilbig", raw_ep_resume=ep_resume_raw  # same note as above
+                model_type="UNet_Hilbig", ep_resume=ep_resume  # same note as above
             )
 
         else:
