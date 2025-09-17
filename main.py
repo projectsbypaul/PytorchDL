@@ -265,7 +265,7 @@ def main():
             RunTrainingUtility.run_hdf5_train_UNet_3D_Segmentation(
                 model_name, hdf5_path, model_weights_loc, epoch, backup_epochs, batch_size,
                 lr, decay_order, split, use_amp, val_batch_factor, workers, n_classes, model_seed,
-                model_type="UNet_16EL", raw_ep_resume=ep_resume_raw  # if the callee expects raw, pass ep_resume if it expects parsed
+                model_type="UNet_16EL", ep_resume=ep_resume  # if the callee expects raw, pass ep_resume if it expects parsed
             )
 
         elif args.mode == 'train_UNet_Hilbig':
