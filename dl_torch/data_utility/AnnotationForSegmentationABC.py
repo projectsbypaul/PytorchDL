@@ -4,6 +4,7 @@ import torch
 from typing import List
 
 from markdown.extensions.extra import extensions
+from numpy.ma.core import masked_inside
 
 from dl_torch.data_utility.InteractiveDataset import InteractiveDataset
 from dl_torch.data_utility import DataParsing
@@ -68,6 +69,145 @@ def _normalize_for_ce_save(data: torch.Tensor, labels: torch.Tensor):
 # -----------------------------
 # Subset builders
 # -----------------------------
+import numpy as np
+import torch
+
+def __sub_Dataset_for_test(target_dir: str, class_list, class_lot, index_lot):
+    bin_array_file = target_dir + "/segmentation_data_segments.bin"
+    segment_info_file = target_dir + "/segmentation_data.dat"
+
+    segment_data = cppIOexcavator.parse_dat_file(segment_info_file)
+
+    background = segment_data["SCALARS"]["background"]
+    voxel_size = segment_data["SCALARS"]["voxel_size"]
+    origins = segment_data["ORIGIN_CONTAINER"]["data"]                     # shape (num_grids, 3)
+    face_type_map = np.array(list(segment_data["FACE_TYPE_MAP"].values()))  # (n_faces,) strings
+    face_to_index_map = segment_data["FACE_TO_GRID_INDEX_CONTAINER"]["data"]  # (n_faces, 3)
+    uniques = segment_data['TYPE_COUNT_MAP']
+
+    bin_arrays = cppIOexcavator.load_segments_from_binary(bin_array_file)  # list of (D,D,D) arrays
+
+    labels = []
+
+    for grid_index, grid in enumerate(bin_arrays):
+        num_classes = len(class_lot)
+        grid_dim = grid.shape[0]
+
+        # ---------------- Masks (disjoint) ----------------
+        surface_threshold = voxel_size / background
+        mask_inside = (grid < -surface_threshold)
+        mask_outside = (grid >  surface_threshold)
+        mask_narrowband = ~(mask_inside | mask_outside)  # same as abs(grid) <= surface_threshold
+
+        # integer voxel coordinates for each region
+        coords_inside      = np.argwhere(mask_inside)         # (Mi,3) int
+        coords_outside     = np.argwhere(mask_outside)        # (Mo,3) int
+        coords_narrowband  = np.argwhere(mask_narrowband)     # (Mn,3) int
+
+        # ---------------- Label tensor ----------------
+        label = np.zeros((grid_dim, grid_dim, grid_dim, num_classes), dtype=np.uint8)
+        idx_inside  = class_lot["Inside"]
+        idx_outside = class_lot["Outside"]
+
+        # write Inside/Outside channels in one shot
+        label[..., idx_inside]  = mask_inside.astype(np.uint8)
+        label[..., idx_outside] = mask_outside.astype(np.uint8)
+
+        # ---------------- Nearest-face mapping for narrowband ----------------
+        # geometry coords (float) = voxel index + origin
+        origin = origins[grid_index]                                  # (3,)
+        nb_coords_float = coords_narrowband.astype(np.float32) + origin  # (Mn,3) float
+
+        nb = torch.as_tensor(nb_coords_float, dtype=torch.float32)    # (Mn,3)
+        fp = torch.as_tensor(face_to_index_map, dtype=torch.float32)  # (N,3)
+
+        # NOTE: cdist is O(M*N) memory/time; switch to KD-tree if this gets big
+        dists = torch.cdist(nb, fp)                                   # (Mn,N)
+        _, nearest_face_indices = torch.min(dists, dim=1)             # (Mn,)
+
+        # convert to NumPy before indexing a NumPy array of strings
+        nearest_face_indices_np = nearest_face_indices.cpu().numpy()  # (Mn,)
+        nearest_face_types = face_type_map[nearest_face_indices_np]   # (Mn,) np.str_ / str
+
+        # map face types -> class indices, default unknown → Outside
+        face_keys = nearest_face_types.astype(object).astype(str)
+        class_idx_arr = np.fromiter(
+            (class_lot.get(k, idx_outside) for k in face_keys),
+            dtype=np.intp,
+            count=face_keys.size
+        )  # (Mn,)
+
+        # vectorized write of narrowband classes
+        ii, jj, kk = coords_narrowband[:, 0], coords_narrowband[:, 1], coords_narrowband[:, 2]
+        label[ii, jj, kk, class_idx_arr] = 1
+
+        # ---------------- Edge assignment (ignore Inside/Outside) ----------------
+        X, Y, Z, C = label.shape
+        idx_edge = class_lot["Edge"]
+
+        # only consider non Inside/Outside classes for neighborhood logic
+        class_mask = np.ones(C, dtype=bool)
+        class_mask[[idx_inside, idx_outside]] = False
+        lbl = label[..., class_mask].astype(bool)  # (X,Y,Z,C_eff)
+        C_eff = lbl.shape[3]
+
+        # pad for 3x3x3 neighborhood scan
+        padded = np.pad(lbl, ((1,1), (1,1), (1,1), (0,0)),
+                        mode="constant", constant_values=False)
+
+        # count neighbors per class in 3x3x3 (EXCLUDING the center)
+        neigh_counts = np.zeros_like(lbl, dtype=np.uint8)  # max 26 fits in uint8
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                for dz in (-1, 0, 1):
+                    if dx == 0 and dy == 0 and dz == 0:
+                        continue
+                    xs = slice(1 + dx, 1 + dx + X)
+                    ys = slice(1 + dy, 1 + dy + Y)
+                    zs = slice(1 + dz, 1 + dz + Z)
+                    neigh_counts += padded[xs, ys, zs, :]
+
+        # center must ALREADY be a considered class (prevents outer shell)
+        center_in_considered = lbl.any(axis=3)  # (X,Y,Z) bool
+
+        # center's own class (within the reduced channel set)
+        own_class = lbl.argmax(axis=3)          # (X,Y,Z) int
+        flat_counts = neigh_counts.reshape(-1, C_eff)
+        own_flat = own_class.ravel()
+        same_class_neigh = flat_counts[np.arange(flat_counts.shape[0]), own_flat].reshape(X, Y, Z)
+
+        # neighbors with different class (voxel count)
+        total_neigh = neigh_counts.sum(axis=3)                      # (X,Y,Z)
+        different_voxel_count = (total_neigh - same_class_neigh)    # (X,Y,Z)
+
+        # distinct other classes present
+        neigh_any = (neigh_counts > 0)
+        distinct_total = neigh_any.sum(axis=3)                      # (X,Y,Z)
+        own_present = neigh_any.reshape(-1, C_eff)[np.arange(flat_counts.shape[0]), own_flat] \
+                         .reshape(X, Y, Z)                          # (X,Y,Z) bool
+        distinct_classes_diff = (distinct_total - own_present.astype(np.int32))  # (X,Y,Z)
+
+        # --- sensitivity: "min voxel count" means >= sensitivity ---
+        sensitivity = 1  # tweak as needed
+
+        edge_mask = center_in_considered & (distinct_classes_diff > 0) & (different_voxel_count >= sensitivity)
+
+        # write Edge one-hot
+        label[edge_mask, :] = 0
+        label[edge_mask, idx_edge] = 1
+
+        labels.append(label)
+
+    # pack tensors
+    data_np = np.stack([np.asarray(g, dtype=np.float32) for g in bin_arrays], axis=0)  # [N, D, D, D]
+    labels_np = np.stack(labels, axis=0)                                               # [N, D, D, D, C]
+
+    data_t = torch.from_numpy(data_np)     # float32
+    labels_t = torch.from_numpy(labels_np) # uint8
+
+    return data_t, labels_t
+
+
 def __sub_Dataset_from_target_dir_default(target_dir: str, class_list, class_lot, index_lot):
 
     bin_array_file = target_dir + "/segmentation_data_segments.bin"
@@ -136,293 +276,224 @@ def __sub_Dataset_from_target_dir_default(target_dir: str, class_list, class_lot
 
 def __sub_Dataset_from_target_dir_inside_outside(
     target_dir: str,
-    class_list,                # list/array of class names, must include "Inside" and "Outside"
     class_lot: dict,           # {class_name -> class_index}
-    index_lot: dict,           # {class_index -> class_name}, optional (kept for compatibility)
-    epsilon: float = 0.0       # treat |grid| <= epsilon as 0; set small >0 to avoid "unassignable"
 ):
-    """
-    Vectorized rebuild of __sub_Dataset_from_target_dir_inside_outside.
-
-    Returns:
-        data   : torch.FloatTensor of shape [N, D, D, D]
-        labels : torch.UInt8Tensor of shape [N, D, D, D, C] one-hot per voxel
-    """
-    bin_array_file   = f"{target_dir}/segmentation_data_segments.bin"
-    segment_info_file= f"{target_dir}/segmentation_data.dat"
+    bin_array_file = target_dir + "/segmentation_data_segments.bin"
+    segment_info_file = target_dir + "/segmentation_data.dat"
 
     segment_data = cppIOexcavator.parse_dat_file(segment_info_file)
 
-    # Load metadata
-    origins = np.asarray(segment_data["ORIGIN_CONTAINER"]["data"], dtype=np.int64)       # [N, 3]
-    face_type_map = np.asarray(list(segment_data["FACE_TYPE_MAP"].values()))            # [F]
-    face_to_index_map = np.asarray(segment_data["FACE_TO_GRID_INDEX_CONTAINER"]["data"], dtype=np.int64)  # [F, 3]
 
-    # Load voxel grids
-    bin_arrays = cppIOexcavator.load_segments_from_binary(bin_array_file)  # list of [D, D, D] arrays
-    num_classes = len(class_list)
+    background = segment_data["SCALARS"]["background"]
+    voxel_size = segment_data["SCALARS"]["voxel_size"]
+    origins = segment_data["ORIGIN_CONTAINER"]["data"]
+    face_type_map = np.array(list(segment_data["FACE_TYPE_MAP"].values()))
+    face_to_index_map = segment_data["FACE_TO_GRID_INDEX_CONTAINER"]["data"]
+    uniques = segment_data['TYPE_COUNT_MAP']
 
-    labels_out = []
-    for part_idx, grid in enumerate(bin_arrays):
-        grid = np.asarray(grid)
-        D = grid.shape[0]
-        origin = origins[part_idx]
-        top = origin + (D - 1)
+    bin_arrays = cppIOexcavator.load_segments_from_binary(bin_array_file)
 
-        # Faces inside this grid bounds
-        fc = face_to_index_map
-        inside_mask = (fc >= origin).all(axis=1) & (fc <= top).all(axis=1)
-        if inside_mask.any():
-            fc_local = fc[inside_mask] - origin            # [M, 3]
-            face_types = face_type_map[inside_mask]        # [M]
-            face_cls_idx = np.fromiter((class_lot[t] for t in face_types), dtype=np.int64, count=face_types.shape[0])
-        else:
-            fc_local = np.empty((0, 3), dtype=np.int64)
-            face_cls_idx = np.empty((0,), dtype=np.int64)
+    labels = []
 
-        counts = np.zeros((D, D, D, num_classes), dtype=np.uint16)
-        if fc_local.size > 0:
-            xi, yi, zi = fc_local[:, 0], fc_local[:, 1], fc_local[:, 2]
-            ci = face_cls_idx
-            np.add.at(counts, (xi, yi, zi, ci), 1)
+    for grid_index, grid in enumerate(bin_arrays):
 
-        max_vals = counts.max(axis=-1)
-        max_idx = counts.argmax(axis=-1)
-        has_face = max_vals > 0
+        num_classes = len(class_lot)
+        grid_dim = grid.shape[0]
 
-        label = np.zeros((D, D, D, num_classes), dtype=np.uint8)
-        if has_face.any():
-            xi, yi, zi = np.where(has_face)
-            label[xi, yi, zi, max_idx[has_face]] = 1
+        surface_threshold = voxel_size / background
 
-        unlabeled = ~has_face
-        if epsilon > 0:
-            neg_mask = (grid < -epsilon) & unlabeled
-            pos_mask = (grid >  epsilon) & unlabeled
-            zero_mask = (~neg_mask) & (~pos_mask) & unlabeled
-        else:
-            neg_mask = (grid < 0) & unlabeled
-            pos_mask = (grid > 0) & unlabeled
-            zero_mask = (grid == 0) & unlabeled
+        mask_inside = grid < -surface_threshold
+        mask_outside = grid > surface_threshold
+        mask_narrowband = (grid >= -surface_threshold) & (grid <= surface_threshold)
 
-        inside_idx  = class_lot["Inside"]
-        outside_idx = class_lot["Outside"]
-        if neg_mask.any():
-            label[neg_mask, inside_idx] = 1
-        if pos_mask.any():
-            label[pos_mask, outside_idx] = 1
-        if zero_mask.any():
-            label[zero_mask, outside_idx] = 1
+        grid_index_inside = np.argwhere(mask_inside)
+        grid_index_outside = np.argwhere(mask_outside)
+        grid_index_narrowband = np.argwhere(mask_narrowband)
 
-        labels_out.append(label)
+        label = np.zeros((grid_dim, grid_dim, grid_dim, num_classes), dtype=np.uint8)
+        idx_inside = class_lot["Inside"]
+        idx_outside = class_lot["Outside"]
 
-    data_np   = np.stack([np.asarray(g, dtype=np.float32) for g in bin_arrays], axis=0)  # [N, D, D, D]
-    labels_np = np.stack(labels_out, axis=0)                                             # [N, D, D, D, C]
+        #bool to integer conversion
+        mask_inside_int = mask_inside.astype(np.uint8)
+        mask_outside_int = mask_outside.astype(np.uint8)
 
-    data_t   = torch.from_numpy(data_np)     # float32
-    labels_t = torch.from_numpy(labels_np)   # uint8
+        #labl[..., channel] -> set channel to mask
+        label[..., idx_inside] = mask_inside_int
+        label[..., idx_outside] = mask_outside_int
+
+        #calculate closest face
+        origin = origins[grid_index]  # (3,)
+        grid_index_narrowband = grid_index_narrowband.astype(np.float32)  # (M,3)
+        narrowband_coord = grid_index_narrowband + origin  # (M,3)
+
+        nb = torch.as_tensor(narrowband_coord, dtype=torch.float32)  # (M,3)
+        fp = torch.as_tensor(face_to_index_map, dtype=torch.float32)  # (N,3)
+
+        d = torch.cdist(nb, fp)  # (M,N)
+        nearest_dists, nearest_face_indices = torch.min(d, dim=1)  # (M,), (M,)
+
+        #get face types
+        nearest_face_types = face_type_map[nearest_face_indices]  # (M,) array of strings
+
+        for idx, coord in enumerate(grid_index_narrowband):
+            try:
+                class_idx = int(class_lot[str(nearest_face_types[idx])])
+                x, y, z = map(int, coord)  # guarantees integer indices
+                label[x, y, z, class_idx] = 1
+            except KeyError:
+                face_type = nearest_face_types[idx]
+                print(f"Surface Unknown {face_type}, assigning Outside")
+                x, y, z = map(int, coord)  # guarantees integer indices
+                label[x, y, z, idx_outside] = 1
+
+        labels.append(label)
+
+    data_np = np.stack([np.asarray(g, dtype=np.float32) for g in bin_arrays], axis=0)  # [N, D, D, D]
+    labels_np = np.stack(labels, axis=0)  # [N, D, D, D, C]
+
+    data_t = torch.from_numpy(data_np)  # float32
+    labels_t = torch.from_numpy(labels_np)  # uint8
 
     return data_t, labels_t
 
 
-def __sub_Dataset_from_target_dir_edge(target_dir: str, class_list, class_lot, index_lot):
-
+def __sub_Dataset_from_target_dir_edge(target_dir: str, class_lot):
     bin_array_file = target_dir + "/segmentation_data_segments.bin"
     segment_info_file = target_dir + "/segmentation_data.dat"
 
     segment_data = cppIOexcavator.parse_dat_file(segment_info_file)
 
-    origins = segment_data["ORIGIN_CONTAINER"]["data"]
-    face_type_map = np.array(list(segment_data["FACE_TYPE_MAP"].values()))
-    vert_type_map = list(segment_data["VERT_TYPE_MAP"].values())
-    face_to_index_map = segment_data["FACE_TO_GRID_INDEX_CONTAINER"]["data"]
-    vert_to_index_map = segment_data["VERT_TO_GRID_INDEX_CONTAINER"]["data"]
+    background = segment_data["SCALARS"]["background"]
+    voxel_size = segment_data["SCALARS"]["voxel_size"]
+    origins = segment_data["ORIGIN_CONTAINER"]["data"]  # shape (num_grids, 3)
+    face_type_map = np.array(list(segment_data["FACE_TYPE_MAP"].values()))  # (n_faces,) strings
+    face_to_index_map = segment_data["FACE_TO_GRID_INDEX_CONTAINER"]["data"]  # (n_faces, 3)
     uniques = segment_data['TYPE_COUNT_MAP']
 
-    # get edge index of edge vertices
-    edge_vertex_indices = []
-    for v_index, vertex in enumerate(vert_type_map):
-        entries = vertex.split(',')
-        if len(entries) > 1:
-            edge_vertex_indices.append(v_index)
-
-    bin_arrays = cppIOexcavator.load_segments_from_binary(bin_array_file)
+    bin_arrays = cppIOexcavator.load_segments_from_binary(bin_array_file)  # list of (D,D,D) arrays
 
     labels = []
 
     for grid_index, grid in enumerate(bin_arrays):
-
-        df_voxel_count = dict()
-
-        for index, surf_type in enumerate(class_list):
-            df_voxel_count.update({surf_type: 0})
-
+        num_classes = len(class_lot)
         grid_dim = grid.shape[0]
 
-        origin = np.asarray(origins[grid_index])
+        # ---------------- Masks (disjoint) ----------------
+        surface_threshold = voxel_size / background
+        mask_inside = (grid < -surface_threshold)
+        mask_outside = (grid > surface_threshold)
+        mask_narrowband = ~(mask_inside | mask_outside)  # same as abs(grid) <= surface_threshold
 
-        top = origin + [grid_dim - 1, grid_dim - 1, grid_dim - 1]
+        # integer voxel coordinates for each region
+        coords_inside = np.argwhere(mask_inside)  # (Mi,3) int
+        coords_outside = np.argwhere(mask_outside)  # (Mo,3) int
+        coords_narrowband = np.argwhere(mask_narrowband)  # (Mn,3) int
 
-        label = np.zeros(shape=[grid_dim, grid_dim, grid_dim, class_list.shape[0]])
+        # ---------------- Label tensor ----------------
+        label = np.zeros((grid_dim, grid_dim, grid_dim, num_classes), dtype=np.uint8)
+        idx_inside = class_lot["Inside"]
+        idx_outside = class_lot["Outside"]
 
-        write_count = 0
+        # write Inside/Outside channels in one shot
+        label[..., idx_inside] = mask_inside.astype(np.uint8)
+        label[..., idx_outside] = mask_outside.astype(np.uint8)
 
-        # face based annotations
-        for face_index, face_center in enumerate(face_to_index_map):
+        # ---------------- Nearest-face mapping for narrowband ----------------
+        # geometry coords (float) = voxel index + origin
+        origin = origins[grid_index]  # (3,)
+        nb_coords_float = coords_narrowband.astype(np.float32) + origin  # (Mn,3) float
 
-            if origin[0] <= face_center[0] <= top[0] and origin[1] <= face_center[1] <= top[1] and origin[2] <= \
-                    face_center[2] <= \
-                    top[2]:
-                grid_coord = face_center - origin
+        nb = torch.as_tensor(nb_coords_float, dtype=torch.float32)  # (Mn,3)
+        fp = torch.as_tensor(face_to_index_map, dtype=torch.float32)  # (N,3)
 
-                type_string = face_type_map[face_index]
-                one_hot_index = class_lot[type_string]
-                label[int(grid_coord[0]), int(grid_coord[1]), int(grid_coord[2]), one_hot_index] += 1
-                write_count += 1
+        # NOTE: cdist is O(M*N) memory/time; switch to KD-tree if this gets big
+        dists = torch.cdist(nb, fp)  # (Mn,N)
+        _, nearest_face_indices = torch.min(dists, dim=1)  # (Mn,)
 
-        # edge classification
-        for vertex in edge_vertex_indices:
-            vertex_on_grid = vert_to_index_map[vertex]
-            if origin[0] <= vertex_on_grid[0] <= top[0] and origin[1] <= vertex_on_grid[1] <= top[1] and origin[2] <= \
-                    vertex_on_grid[2] <= \
-                    top[2]:
-                grid_coord = vertex_on_grid - origin
-                type_string = "Edge"
-                one_hot_index = class_lot[type_string]
-                label[int(grid_coord[0]), int(grid_coord[1]), int(grid_coord[2]), one_hot_index] += 1
-                write_count += 1
+        # convert to NumPy before indexing a NumPy array of strings
+        nearest_face_indices_np = nearest_face_indices.cpu().numpy()  # (Mn,)
+        nearest_face_types = face_type_map[nearest_face_indices_np]  # (Mn,) np.str_ / str
 
-        # inside - outside classification
-        for i, j, k in np.ndindex(label.shape[0], label.shape[1], label.shape[2]):
-            voxel = label[i, j, k, :]
+        # map face types -> class indices, default unknown → Outside
+        face_keys = nearest_face_types.astype(object).astype(str)
+        class_idx_arr = np.fromiter(
+            (class_lot.get(k, idx_outside) for k in face_keys),
+            dtype=np.intp,
+            count=face_keys.size
+        )  # (Mn,)
 
-            if np.sum(voxel) > 0:
-                # Enforce edge class
-                if voxel[class_lot["Edge"]] > 0:
-                    max_index = class_lot["Edge"]
-                else:
-                    max_index = np.argmax(voxel)
+        # vectorized write of narrowband classes
+        ii, jj, kk = coords_narrowband[:, 0], coords_narrowband[:, 1], coords_narrowband[:, 2]
+        label[ii, jj, kk, class_idx_arr] = 1
 
-                label[i, j, k, :] = np.zeros_like(voxel)
-                label[i, j, k, max_index] = 1
-                df_voxel_count[index_lot[max_index]] += 1
-            else:
-                if grid[i, j, k] < 0:
-                    label[i, j, k, class_lot["Inside"]] = 1
-                    df_voxel_count['Inside'] += 1
-                elif grid[i, j, k] > 0:
-                    label[i, j, k, class_lot["Outside"]] = 1
-                    df_voxel_count['Outside'] += 1
-                else:
-                    print(f"Error: Unassign able voxel found val: {grid[i, j, k]}")
-                    continue
+        # ---------------- Edge assignment (ignore Inside/Outside) ----------------
+        X, Y, Z, C = label.shape
+        idx_edge = class_lot["Edge"]
+
+        # only consider non Inside/Outside classes for neighborhood logic
+        class_mask = np.ones(C, dtype=bool)
+        class_mask[[idx_inside, idx_outside]] = False
+        lbl = label[..., class_mask].astype(bool)  # (X,Y,Z,C_eff)
+        C_eff = lbl.shape[3]
+
+        # pad for 3x3x3 neighborhood scan
+        padded = np.pad(lbl, ((1, 1), (1, 1), (1, 1), (0, 0)),
+                        mode="constant", constant_values=False)
+
+        # count neighbors per class in 3x3x3 (EXCLUDING the center)
+        neigh_counts = np.zeros_like(lbl, dtype=np.uint8)  # max 26 fits in uint8
+        for dx in (-1, 0, 1):
+            for dy in (-1, 0, 1):
+                for dz in (-1, 0, 1):
+                    if dx == 0 and dy == 0 and dz == 0:
+                        continue
+                    xs = slice(1 + dx, 1 + dx + X)
+                    ys = slice(1 + dy, 1 + dy + Y)
+                    zs = slice(1 + dz, 1 + dz + Z)
+                    neigh_counts += padded[xs, ys, zs, :]
+
+        # center must ALREADY be a considered class (prevents outer shell)
+        center_in_considered = lbl.any(axis=3)  # (X,Y,Z) bool
+
+        # center's own class (within the reduced channel set)
+        own_class = lbl.argmax(axis=3)  # (X,Y,Z) int
+        flat_counts = neigh_counts.reshape(-1, C_eff)
+        own_flat = own_class.ravel()
+        same_class_neigh = flat_counts[np.arange(flat_counts.shape[0]), own_flat].reshape(X, Y, Z)
+
+        # neighbors with different class (voxel count)
+        total_neigh = neigh_counts.sum(axis=3)  # (X,Y,Z)
+        different_voxel_count = (total_neigh - same_class_neigh)  # (X,Y,Z)
+
+        # distinct other classes present
+        neigh_any = (neigh_counts > 0)
+        distinct_total = neigh_any.sum(axis=3)  # (X,Y,Z)
+        own_present = neigh_any.reshape(-1, C_eff)[np.arange(flat_counts.shape[0]), own_flat] \
+            .reshape(X, Y, Z)  # (X,Y,Z) bool
+        distinct_classes_diff = (distinct_total - own_present.astype(np.int32))  # (X,Y,Z)
+
+        # --- sensitivity: "min voxel count" means >= sensitivity ---
+        sensitivity = 1  # tweak as needed
+
+        edge_mask = center_in_considered & (distinct_classes_diff > 0) & (different_voxel_count >= sensitivity)
+
+        # write Edge one-hot
+        label[edge_mask, :] = 0
+        label[edge_mask, idx_edge] = 1
 
         labels.append(label)
 
-    data = torch.tensor(np.array(bin_arrays))
-    labels = torch.tensor(np.array(labels))
+    # pack tensors
+    data_np = np.stack([np.asarray(g, dtype=np.float32) for g in bin_arrays], axis=0)  # [N, D, D, D]
+    labels_np = np.stack(labels, axis=0)  # [N, D, D, D, C]
 
-    return data, labels
+    data_t = torch.from_numpy(data_np)  # float32
+    labels_t = torch.from_numpy(labels_np)  # uint8
+
+    return data_t, labels_t
 
 
-def __sub_Dataset_from_target_dir_edge_only(target_dir: str, class_list, class_lot, index_lot):
-
-    bin_array_file = target_dir + "/segmentation_data_segments.bin"
-    segment_info_file = target_dir + "/segmentation_data.dat"
-
-    segment_data = cppIOexcavator.parse_dat_file(segment_info_file)
-
-    origins = segment_data["ORIGIN_CONTAINER"]["data"]
-    face_type_map = np.array(list(segment_data["FACE_TYPE_MAP"].values()))
-    vert_type_map = list(segment_data["VERT_TYPE_MAP"].values())
-    face_to_index_map = segment_data["FACE_TO_GRID_INDEX_CONTAINER"]["data"]
-    vert_to_index_map = segment_data["VERT_TO_GRID_INDEX_CONTAINER"]["data"]
-    uniques = segment_data['TYPE_COUNT_MAP']
-
-    # get edge index of edge vertices
-    edge_vertex_indices = []
-    for v_index, vertex in enumerate(vert_type_map):
-        entries = vertex.split(',')
-        if len(entries) > 1:
-            edge_vertex_indices.append(v_index)
-
-    bin_arrays = cppIOexcavator.load_segments_from_binary(bin_array_file)
-
-    labels = []
-
-    for grid_index, grid in enumerate(bin_arrays):
-
-        df_voxel_count = dict()
-
-        for index, surf_type in enumerate(class_list):
-            df_voxel_count.update({surf_type: 0})
-
-        grid_dim = grid.shape[0]
-
-        origin = np.asarray(origins[grid_index])
-
-        top = origin + [grid_dim - 1, grid_dim - 1, grid_dim - 1]
-
-        label = np.zeros(shape=[grid_dim, grid_dim, grid_dim, class_list.shape[0]])
-
-        write_count = 0
-
-        # face based annotations
-        for face_index, face_center in enumerate(face_to_index_map):
-
-            if origin[0] <= face_center[0] <= top[0] and origin[1] <= face_center[1] <= top[1] and origin[2] <= \
-                    face_center[2] <= \
-                    top[2]:
-                grid_coord = face_center - origin
-
-                type_string = "Surface"
-                one_hot_index = class_lot[type_string]
-                label[int(grid_coord[0]), int(grid_coord[1]), int(grid_coord[2]), one_hot_index] += 1
-                write_count += 1
-
-        # edge classification
-        for vertex in edge_vertex_indices:
-            vertex_on_grid = vert_to_index_map[vertex]
-            if origin[0] <= vertex_on_grid[0] <= top[0] and origin[1] <= vertex_on_grid[1] <= top[1] and origin[2] <= \
-                    vertex_on_grid[2] <= \
-                    top[2]:
-                grid_coord = vertex_on_grid - origin
-                type_string = "Edge"
-                one_hot_index = class_lot[type_string]
-                label[int(grid_coord[0]), int(grid_coord[1]), int(grid_coord[2]), one_hot_index] += 1
-                write_count += 1
-
-        # inside - outside classification
-        for i, j, k in np.ndindex(label.shape[0], label.shape[1], label.shape[2]):
-            voxel = label[i, j, k, :]
-
-            if np.sum(voxel) > 0:
-                # Enforce edge class
-                if voxel[class_lot["Edge"]] > 0:
-                    max_index = class_lot["Edge"]
-                else:
-                    max_index = np.argmax(voxel)
-
-                label[i, j, k, :] = np.zeros_like(voxel)
-                label[i, j, k, max_index] = 1
-                df_voxel_count[index_lot[max_index]] += 1
-            else:
-                if grid[i, j, k] < 0:
-                    label[i, j, k, class_lot["Inside"]] = 1
-                    df_voxel_count['Inside'] += 1
-                elif grid[i, j, k] > 0:
-                    label[i, j, k, class_lot["Outside"]] = 1
-                    df_voxel_count['Outside'] += 1
-                else:
-                    print(f"Error: Unassign able voxel found val: {grid[i, j, k]}")
-                    continue
-
-        labels.append(label)
-
-    data = torch.tensor(np.array(bin_arrays))
-    labels = torch.tensor(np.array(labels))
-
-    return data, labels
 
 
 # -----------------------------
@@ -436,21 +507,19 @@ def create_ABC_sub_Dataset(segment_dir : str, torch_dir : str, n_min_files :  in
     template_list = {
         "default"         : 0,
         "edge"            : 1,
-        "inside_outside"  : 2,
-        "edge_only"       : 3
+        "inside_outside"  : 2
     }
 
     match template_list[template]:
         case 0 : color_template = color_templates.default_color_template_abc()
         case 1 : color_template = color_templates.edge_color_template_abc()
         case 2 : color_template = color_templates.inside_outside_color_template_abc()
-        case 3 : color_template = color_templates.edge_only_color_template_abc()
 
     if template is not None:
         class_keys = list(color_template.keys())
 
         class_list = np.array(class_keys)
-        class_list = np.sort(class_list)
+        # class_list = np.sort(class_list)
         class_indices = np.arange(len(class_list))
         class_lot = dict(zip(class_list, class_indices))
         index_lot = dict(zip(class_indices, class_list, ))
@@ -472,11 +541,10 @@ def create_ABC_sub_Dataset(segment_dir : str, torch_dir : str, n_min_files :  in
                     case 0:
                         data, labels = __sub_Dataset_from_target_dir_default(full_path, class_list, class_lot, index_lot)
                     case 1:
-                        data, labels = __sub_Dataset_from_target_dir_edge(full_path, class_list, class_lot, index_lot)
+                        data, labels = __sub_Dataset_from_target_dir_edge(full_path, class_lot)
                     case 2:
-                        data, labels = __sub_Dataset_from_target_dir_inside_outside(full_path, class_list, class_lot, index_lot)
-                    case 3:
-                        data, labels = __sub_Dataset_from_target_dir_edge_only(full_path, class_list, class_lot, index_lot)
+                        data, labels = __sub_Dataset_from_target_dir_inside_outside(full_path, class_lot)
+
 
                 if data is not None and labels is not None:
                     # Normalize for CE (indices for labels, channel for data)
@@ -503,7 +571,6 @@ def create_ABC_sub_Dataset_from_job(job_file: str, segment_dir : str, torch_dir 
         "default": 0,
         "edge": 1,
         "inside_outside": 2,
-        "edge_only": 3
     }
 
     match template_list[template]:
@@ -521,7 +588,7 @@ def create_ABC_sub_Dataset_from_job(job_file: str, segment_dir : str, torch_dir 
         class_keys = list(color_template.keys())
 
         class_list = np.array(class_keys)
-        class_list = np.sort(class_list)
+        # class_list = np.sort(class_list)
         class_indices = np.arange(len(class_list))
         class_lot = dict(zip(class_list, class_indices))
         index_lot = dict(zip(class_indices, class_list, ))
@@ -546,9 +613,7 @@ def create_ABC_sub_Dataset_from_job(job_file: str, segment_dir : str, torch_dir 
                     case 1:
                         data, labels = __sub_Dataset_from_target_dir_edge(full_path, class_list, class_lot, index_lot)
                     case 2:
-                        data, labels = __sub_Dataset_from_target_dir_inside_outside(full_path, class_list, class_lot, index_lot)
-                    case 3:
-                        data, labels = __sub_Dataset_from_target_dir_edge_only(full_path, class_list, class_lot, index_lot)
+                        data, labels = __sub_Dataset_from_target_dir_inside_outside(full_path, class_lot)
 
                 if data is not None and labels is not None:
                     # !! removed incorrect permutation of labels
@@ -689,11 +754,9 @@ def compressed_segment_dir_to_dataset(segment_dir_zip : [str], workspace_dir, te
 
 
 def main():
-
-    job_file = r"W:\hpc_workloads\hpc_datasets\jobs_Block_A\Instance001.job"
-    workspace = r"W:\hpc_workloads\hpc_datasets\Block_A\train_A_10000_16_pd0_bw12_vs2_20250825-084440\workspace"
-    source = r"W:\hpc_workloads\hpc_datasets\Block_A\train_A_10000_16_pd0_bw12_vs2_20250825-084440\output_dir"
-
+    source = r"W:\label_debug\target"
+    torch_dir = r"W:\label_debug\subsets\edge"
+    create_ABC_sub_Dataset(source, torch_dir, 2 , "edge")
 
 if __name__ == "__main__":
     main()

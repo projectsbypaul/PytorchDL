@@ -39,9 +39,23 @@ def edge_color_template_abc() -> VisualProperties:
         'Sphere':   ((128, 0, 0),    1.0),   # maroon
         'Torus':    ((0, 255, 255),  1.0),   # cyan
         'Edge':     ((255, 255, 0),  1.0),   # yellow
-        'Inside':   ((255, 0, 0),    0.0),   # red
+        'Inside':   ((255, 0, 0),    1.0),   # red
         'Outside':  ((0, 0, 255),    0.0),   # blue
     }
+
+def edge_color_template_abc_sorted() -> VisualProperties:
+    return {
+        'BSpline':  ((138, 43, 226), 1.0),   # purple
+        'Cone':     ((0, 128, 0),    1.0),   # green
+        'Cylinder': ((255, 165, 0),  1.0),   # orange
+        'Edge':     ((255, 255, 0), 1.0),  # yellow
+        'Inside':   ((255, 0, 0), 1.0),  # red
+        'Outside':  ((0, 0, 255), 0.0),  # blue
+        'Plane':    ((255, 20, 147), 1.0),   # deep pink
+        'Sphere':   ((128, 0, 0),    1.0),   # maroon
+        'Torus':    ((0, 255, 255),  1.0),   # cyan
+    }
+
 
 def edge_only_color_template_abc() -> VisualProperties:
     return {

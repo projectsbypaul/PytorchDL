@@ -1,8 +1,9 @@
 from visualization import color_templates
 import torch
 import pickle
-from dl_torch.models.UNet3D_Segmentation import UNet3D_16EL
+from dl_torch.models.UNet3D_Segmentation import UNet3D_16EL, UNet_Hilbig
 from utility.data_exchange import cppIOexcavator
+from dl_torch.data_utility import InteractiveDataset
 import numpy as np
 import os
 import matplotlib.pyplot as plt
@@ -50,7 +51,6 @@ def visu_mesh_label(data_loc : str, save_loc : str):
     with open(save_loc, "wb") as f:
         pickle.dump(face_colors, f)
 
-
 def visu_mesh_model_on_dir(data_loc : str,weights_loc : str, save_loc : str, kernel_size : int, padding : int, n_classes):
     # parameters
     bin_array_file = data_loc + "/segmentation_data_segments.bin"
@@ -70,7 +70,7 @@ def visu_mesh_model_on_dir(data_loc : str,weights_loc : str, save_loc : str, ker
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print("Using device:", device)
 
-    model = UNet3D_16EL(in_channels=1, out_channels=10)
+    model = UNet_Hilbig(in_channels=1, out_channels=n_classes)
     state_dict = torch.load(weights_loc)
 
     model.load_state_dict(state_dict)  # it takes the loaded dictionary, not the path file itself
@@ -109,7 +109,7 @@ def visu_mesh_model_on_dir(data_loc : str,weights_loc : str, save_loc : str, ker
                 for z in range(int(padding * 0.5), kernel_size - int(padding * 0.5)):
                     full_grid[int(offset[0]) + x,int(offset[1]) + y, int(offset[2]) + z] = grid[x,y,z]
 
-    color_temp = color_templates.default_color_template_abc()
+    color_temp = color_templates.edge_color_template_abc_sorted()
 
     class_list = color_templates.get_class_list(color_temp)
 
@@ -230,145 +230,333 @@ def visu_histogram_segmentation_samples(val_result_loc :  str):
     plt.tight_layout()
     plt.show()
 
-def visu_voxel_on_dir(data_loc: str, weights_loc: str, kernel_size: int, padding: int, n_classes):
+import os
+import numpy as np
+import torch
+import pyvista as pv
+from matplotlib.colors import ListedColormap
+
+# Assumes these exist in your codebase:
+# - cppIOexcavator.load_segments_from_binary
+# - cppIOexcavator.parse_dat_file
+# - color_templates.edge_color_template_abc / get_class_list / get_color_dict / get_opacity_dict
+# - UNet_Hilbig
 
 
-    data_arrays = cppIOexcavator.load_segments_from_binary(os.path.join(data_loc ,"segmentation_data_segments.bin"))
-    seg_info = cppIOexcavator.parse_dat_file(os.path.join(data_loc , "segmentation_data.dat"))
 
-    # data torch
-    model_input = torch.tensor(np.array(data_arrays))
-    model_input = model_input.unsqueeze(1)
+def visu_voxel_on_dir(data_loc: str, weights_loc: str, kernel_size: int, padding: int, n_classes: int,
+                      stride: int = 1, surface_only: bool = False):
+    # -----------------------------
+    # 1) Load segments + metadata
+    # -----------------------------
+    data_arrays = cppIOexcavator.load_segments_from_binary(
+        os.path.join(data_loc, "segmentation_data_segments.bin")
+    )
+    seg_info = cppIOexcavator.parse_dat_file(
+        os.path.join(data_loc, "segmentation_data.dat")
+    )
 
-    # load model
+    # Model input: (N,1,ks,ks,ks)
+    model_input = torch.tensor(np.array(data_arrays)).unsqueeze(1)
+
+    # -----------------------------
+    # 2) Load model + predict
+    # -----------------------------
     print("Evaluating Model")
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print("Using device:", device)
 
-    model = UNet3D_16EL(in_channels=1, out_channels=n_classes)
-    state_dict = torch.load(weights_loc)
-
-    model.load_state_dict(state_dict)  # it takes the loaded dictionary, not the path file itself
+    model = UNet_Hilbig(in_channels=1, out_channels=n_classes)
+    state_dict = torch.load(weights_loc, map_location='cpu')
+    model.load_state_dict(state_dict)
     model.to(device)
     model.eval()
 
     print("model predicting outputs...")
-
-    # use model
     with torch.no_grad():
         model_input = model_input.to(device)
-        model_output = model(model_input)
+        model_output = model(model_input)          # (N, C, ks, ks, ks)
         model_output = model_output.cpu()
+        _, prediction = torch.max(model_output, 1) # (N, ks, ks, ks)
+        prediction = prediction.numpy()            # int64
 
-        _, prediction = torch.max(model_output, 1)
-        prediction = prediction.cpu().numpy()
-        model_output = model_output.numpy()
+    # -----------------------------
+    # 3) Assemble full label grid
+    # -----------------------------
+    origins = seg_info["ORIGIN_CONTAINER"]["data"]  # list of (x,y,z)
+    origins_array = np.asarray(origins, dtype=int)
 
-    # assemble outputs
+    bottom_coord   = np.min(origins_array, axis=0)
+    top_inclusive  = np.max(origins_array + int(kernel_size) - 1, axis=0)
+    top_exclusive  = top_inclusive + 1
+    dim_vec        = (top_exclusive - bottom_coord).astype(int)
 
-    origins = seg_info["ORIGIN_CONTAINER"]["data"]
-    bottom_coord = np.asarray(origins[0])
-    top_coord = np.asarray(origins[len(origins) - 1])
-    top_coord += [kernel_size - 1, kernel_size - 1, kernel_size - 1]
-    offsets = [[0, 0, 0] - bottom_coord + origin for origin in origins]
+    # Offsets per block (global placement of local [0..ks) coords)
+    offsets = [(-bottom_coord + np.array(o, dtype=int)) for o in origins]
 
-    color_temp = color_templates.default_color_template_abc()
+    # Color/opacity template
+    color_temp     = color_templates.edge_color_template_abc_sorted()
+    class_list     = color_templates.get_class_list(color_temp)          # ordered names -> indices
+    custom_colors  = color_templates.get_color_dict(color_temp)          # {name: (R,G,B)}
+    custom_opacity = color_templates.get_opacity_dict(color_temp)        # {name: alpha}
 
-    class_list = color_templates.get_class_list(color_temp)
+    # Default fill: Outside
+    void_idx = class_list.index('Outside')
 
-    custom_colors = color_templates.get_color_dict(color_temp)
-    custom_opacity = color_templates.get_opacity_dict(color_temp)
+    # Compact dtype for labels
+    if n_classes <= 255:
+        label_dtype = np.uint8
+    elif n_classes <= 65535:
+        label_dtype = np.uint16
+    else:
+        label_dtype = np.int32
 
-    # assemble outputs
-    origins_array = np.asarray(origins)
-    bottom_coord = np.min(origins_array, axis=0)
-    top_coord = np.max(origins_array + kernel_size - 1, axis=0)
-
-    offsets = [[0, 0, 0] - bottom_coord + origin for origin in origins]
-
-    dim_vec = top_coord - bottom_coord
-
-    color_temp = color_templates.default_color_template_abc()
-    class_list = color_templates.get_class_list(color_temp)
-
-    void_class_name = 'Void'
-    void_class_idx = class_list.index(void_class_name)
-    full_grid = np.full(
-        shape=(int(dim_vec[0]), int(dim_vec[1]), int(dim_vec[2])),
-        fill_value=void_class_idx,
-        dtype=np.float32
-    )
+    full_grid = np.full(tuple(dim_vec), fill_value=void_idx, dtype=label_dtype)
 
     print("assembling model outputs...")
+    ks       = int(kernel_size)
+    pad_half = int(padding // 2)
+    x0, x1   = pad_half, ks - pad_half
+    if x1 <= x0:
+        print("Padding too large for kernel_size; nothing to paste.")
+        return
 
-    for g_index in range(prediction.shape[0]):
+    # Paste each predicted block (vectorized slice; no inner xyz loops)
+    for g_index, off in enumerate(offsets):
+        block = prediction[g_index]                  # (ks, ks, ks), int64
+        crop  = block[x0:x1, x0:x1, x0:x1]          # remove padding border
+        dx, dy, dz = crop.shape
+        ox, oy, oz = (int(off[0]) + x0, int(off[1]) + x0, int(off[2]) + x0)
+        full_grid[ox:ox+dx, oy:oy+dy, oz:oz+dz] = crop.astype(label_dtype, copy=False)
 
-        grid = prediction[g_index, :]
+    # -----------------------------
+    # 4) Build draw set: non-Inside/Outside voxels
+    # -----------------------------
+    labels = full_grid.astype(np.int32, copy=False)
 
-        offset = offsets[g_index]
+    hidden = {'Outside'}
+    visible_class_mask = np.array([name not in hidden for name in class_list], dtype=bool)
+    keep = visible_class_mask[labels]   # True where voxel should be drawn
 
-        for x in range(int(padding * 0.5), kernel_size - int(padding * 0.5)):
-            for y in range(int(padding * 0.5), kernel_size - int(padding * 0.5)):
-                for z in range(int(padding * 0.5), kernel_size - int(padding * 0.5)):
-                    full_grid[int(offset[0]) + x, int(offset[1]) + y, int(offset[2]) + z] = grid[x, y, z]
+    if not np.any(keep):
+        print("No voxels to render (all are Inside/Outside).")
+        return
 
+    if surface_only:
+        # Keep only boundary voxels of the visible set (optional toggle)
+        vm  = keep
+        pad = np.pad(vm, 1, constant_values=False)
+        fully_surrounded = (
+            pad[2:,1:-1,1:-1] & pad[:-2,1:-1,1:-1] &
+            pad[1:-1,2:,1:-1] & pad[1:-1,:-2,1:-1] &
+            pad[1:-1,1:-1,2:] & pad[1:-1,1:-1,:-2]
+        )
+        keep = vm & ~fully_surrounded
+        if not np.any(keep):
+            print("No surface voxels remain after filtering.")
+            return
 
-    # Create a PyVista plotter
-    plotter = pv.Plotter()
+    coords       = np.argwhere(keep)   # (K, 3)
+    kept_labels  = labels[keep]
 
-    cubes = []
+    if stride > 1:
+        coords      = coords[::stride]
+        kept_labels = kept_labels[::stride]
 
-    print("drawing full grid outputs...")
+    # -----------------------------
+    # 5) Colors (per-voxel RGBA, uint8)
+    # -----------------------------
+    lut_rgba = np.zeros((len(class_list), 4), dtype=np.uint8)
+    for idx, name in enumerate(class_list):
+        r, g, b = custom_colors[name]
+        a = 0.0 if name in hidden else float(custom_opacity.get(name, 1.0))
+        lut_rgba[idx] = (r, g, b, int(round(a * 255)))
 
-    counter = 0
-    n_cubes = full_grid.shape[0] * full_grid.shape[1] * full_grid.shape[1]
+    colors_rgba = lut_rgba[kept_labels]  # (K, 4) uint8
 
-    for x in range(full_grid.shape[0]):
-        for y in range(full_grid.shape[1]):
-            for z in range(full_grid.shape[2]):
-                class_idx = int(full_grid[x, y, z])
-                temp_label = class_list[class_idx]
+    # -----------------------------
+    # 6) Glyph render (one actor)
+    # -----------------------------
+    points = coords.astype(np.float32)   # voxel centers at integer coords
+    cloud  = pv.PolyData(points)
+    cloud['rgba'] = colors_rgba
 
-                # print(f"plotting {x} {y} {z}")
+    cube   = pv.Cube(center=(0, 0, 0), x_length=1.0, y_length=1.0, z_length=1.0)
+    glyphs = cloud.glyph(geom=cube, scale=False, orient=False)
 
-                # Skip invisible (Void) cubes
-                if custom_opacity[temp_label] == 0.0:
-                    continue
+    print("PyVista version:", pv.__version__)
+    p = pv.Plotter()
+    p.add_mesh(
+        glyphs,
+        scalars='rgba',
+        rgba=True,
+        lighting=False,          # flat label colors
+        culling='back',          # reduce overdraw
+        show_edges=False,
+        render_lines_as_tubes=False,
+    )
+    p.enable_eye_dome_lighting()
 
-                # Create a cube centered at the grid location
-                cube = pv.Cube(center=(x, y, z), x_length=1.0,
-                               y_length=1.0,
-                               z_length=1.0)
+    # Legend for visible classes only
+    legend_entries = [[name, tuple(c/255 for c in custom_colors[name])]
+                      for name in class_list if name not in hidden]
+    if legend_entries:
+        p.add_legend(legend_entries, bcolor='white', face='circle',
+                     size=(0.2, 0.25), loc='lower right')
 
-                color = custom_colors[temp_label]
+    # Optional: interactive clip plane to peek inside solid regions
+    # p.add_mesh_clip_plane(glyphs)
 
-                color_rgb = tuple(c / 255 for c in color)
-                alpha = custom_opacity[temp_label]
+    p.show()
 
-                rgba = np.append(color_rgb, alpha)  # [R, G, B, A]
+def visu_label_on_dir(data_loc: str, torch_path: str, kernel_size: int, padding: int, n_classes: int,
+                      stride: int = 1, surface_only: bool = False):
+    # -----------------------------
+    # 1) Load segments + metadata
+    # -----------------------------
+    data_arrays = cppIOexcavator.load_segments_from_binary(
+        os.path.join(data_loc, "segmentation_data_segments.bin")
+    )
+    seg_info = cppIOexcavator.parse_dat_file(
+        os.path.join(data_loc, "segmentation_data.dat")
+    )
 
-                cube.cell_data["colors"] = np.tile(rgba, (cube.n_cells, 1))
+    dataset = InteractiveDataset.InteractiveDataset.load_dataset(torch_path)
+    print(dataset.get_info())
 
-                counter += 1
-                print(f"added cubes {counter} / {n_cubes}")
+    torch_label = dataset.labels.numpy()  # [N, C, X, Y, Z] or similar
+    class_dict = dataset.get_class_dictionary()  # {label_name: class_index}
+    torch_class_list = list(class_dict.keys())
 
-                cubes.append(cube)
+    # -----------------------------
+    # 3) Assemble full label grid
+    # -----------------------------
+    origins = seg_info["ORIGIN_CONTAINER"]["data"]  # list of (x,y,z)
+    origins_array = np.asarray(origins, dtype=int)
 
-    combined = pv.MultiBlock(cubes).combine()
+    bottom_coord   = np.min(origins_array, axis=0)
+    top_inclusive  = np.max(origins_array + int(kernel_size) - 1, axis=0)
+    top_exclusive  = top_inclusive + 1
+    dim_vec        = (top_exclusive - bottom_coord).astype(int)
 
-    plotter.add_mesh(combined, scalars="colors", rgba=True, show_edges=False)
+    # Offsets per block (global placement of local [0..ks) coords)
+    offsets = [(-bottom_coord + np.array(o, dtype=int)) for o in origins]
 
-    # ---- Create Custom Legend ----
-    legend_entries = []
-    for label in class_list:
-        if custom_opacity[label] == 0.0:
-            continue
-        rgb = tuple(c / 255 for c in custom_colors[label])
-        legend_entries.append([label, rgb])
+    # Color/opacity template
+    color_temp     = color_templates.edge_color_template_abc()
+    class_list     = color_templates.get_class_list(color_temp)          # ordered names -> indices
+    custom_colors  = color_templates.get_color_dict(color_temp)          # {name: (R,G,B)}
+    custom_opacity = color_templates.get_opacity_dict(color_temp)        # {name: alpha}
 
-    plotter.add_legend(legend_entries, bcolor='white', face='circle', size=(0.2, 0.25), loc='lower right')
+    # Default fill: Outside
+    void_idx = class_list.index('Outside')
 
-    plotter.show()
+    # Compact dtype for labels
+    if n_classes <= 255:
+        label_dtype = np.uint8
+    elif n_classes <= 65535:
+        label_dtype = np.uint16
+    else:
+        label_dtype = np.int32
+
+    full_grid = np.full(tuple(dim_vec), fill_value=void_idx, dtype=label_dtype)
+
+    print("assembling model outputs...")
+    ks       = int(kernel_size)
+    pad_half = int(padding // 2)
+    x0, x1   = pad_half, ks - pad_half
+    if x1 <= x0:
+        print("Padding too large for kernel_size; nothing to paste.")
+        return
+
+    # Paste each predicted block (vectorized slice; no inner xyz loops)
+    for g_index, off in enumerate(offsets):
+        block = torch_label[g_index]                  # (ks, ks, ks), int64
+        crop  = block[x0:x1, x0:x1, x0:x1]          # remove padding border
+        dx, dy, dz = crop.shape
+        ox, oy, oz = (int(off[0]) + x0, int(off[1]) + x0, int(off[2]) + x0)
+        full_grid[ox:ox+dx, oy:oy+dy, oz:oz+dz] = crop.astype(label_dtype, copy=False)
+
+    # -----------------------------
+    # 4) Build draw set: non-Inside/Outside voxels
+    # -----------------------------
+    labels = full_grid.astype(np.int32, copy=False)
+
+    hidden = {'Outside'}
+    visible_class_mask = np.array([name not in hidden for name in class_list], dtype=bool)
+    keep = visible_class_mask[labels]   # True where voxel should be drawn
+
+    if not np.any(keep):
+        print("No voxels to render (all are Inside/Outside).")
+        return
+
+    if surface_only:
+        # Keep only boundary voxels of the visible set (optional toggle)
+        vm  = keep
+        pad = np.pad(vm, 1, constant_values=False)
+        fully_surrounded = (
+            pad[2:,1:-1,1:-1] & pad[:-2,1:-1,1:-1] &
+            pad[1:-1,2:,1:-1] & pad[1:-1,:-2,1:-1] &
+            pad[1:-1,1:-1,2:] & pad[1:-1,1:-1,:-2]
+        )
+        keep = vm & ~fully_surrounded
+        if not np.any(keep):
+            print("No surface voxels remain after filtering.")
+            return
+
+    coords       = np.argwhere(keep)   # (K, 3)
+    kept_labels  = labels[keep]
+
+    if stride > 1:
+        coords      = coords[::stride]
+        kept_labels = kept_labels[::stride]
+
+    # -----------------------------
+    # 5) Colors (per-voxel RGBA, uint8)
+    # -----------------------------
+    lut_rgba = np.zeros((len(class_list), 4), dtype=np.uint8)
+    for idx, name in enumerate(class_list):
+        r, g, b = custom_colors[name]
+        a = 0.0 if name in hidden else float(custom_opacity.get(name, 1.0))
+        lut_rgba[idx] = (r, g, b, int(round(a * 255)))
+
+    colors_rgba = lut_rgba[kept_labels]  # (K, 4) uint8
+
+    # -----------------------------
+    # 6) Glyph render (one actor)
+    # -----------------------------
+    points = coords.astype(np.float32)   # voxel centers at integer coords
+    cloud  = pv.PolyData(points)
+    cloud['rgba'] = colors_rgba
+
+    cube   = pv.Cube(center=(0, 0, 0), x_length=1.0, y_length=1.0, z_length=1.0)
+    glyphs = cloud.glyph(geom=cube, scale=False, orient=False)
+
+    print("PyVista version:", pv.__version__)
+    p = pv.Plotter()
+    p.add_mesh(
+        glyphs,
+        scalars='rgba',
+        rgba=True,
+        lighting=False,          # flat label colors
+        culling='back',          # reduce overdraw
+        show_edges=False,
+        render_lines_as_tubes=False,
+    )
+    p.enable_eye_dome_lighting()
+
+    # Legend for visible classes only
+    legend_entries = [[name, tuple(c/255 for c in custom_colors[name])]
+                      for name in class_list if name not in hidden]
+    if legend_entries:
+        p.add_legend(legend_entries, bcolor='white', face='circle',
+                     size=(0.2, 0.25), loc='lower right')
+
+    # Optional: interactive clip plane to peek inside solid regions
+    # p.add_mesh_clip_plane(glyphs)
+
+    p.show()
+
 
 def get_vdb_from_dir(data_loc: str, weights_loc: str, kernel_size: int, padding: int, n_classes, grid_name: str):
 
@@ -587,13 +775,10 @@ def draw_voxel_slice_from_dir(
     plt.show()
 
 def main():
-    data_loc = r"H:\ABC_Demo\temp"
-    # data_loc = r"H:\ABC\ABC_Datasets\Segmentation\val_ks_16_pad_4_bw_5_vs_adaptive_n3\ABC_chunk_00\ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n3\00000002"
-    weights_loc = r"C:\Users\pschuster\source\repos\PytorchDL\data\model_weights\UNet3D_SDF_16EL_n_class_10_multiset_1f0_mio\UNet3D_SDF_16EL_n_class_10_multiset_1f0_mio_lr[0.0001]_lrdc[1e-01]_bs16_save_120.pth"
-    gird_name = "vdb_test"
-    # get_vdb_from_dir(data_loc, weights_loc, 16, 4, 10, gird_name)
-    get_vdb_from_dir(data_loc, weights_loc ,16, 4, 10, "test")
-    # draw_voxel_slice_from_dir(data_loc, weights_loc, 16, 4, 10, 0)
+    data_loc = r"W:\label_debug\target\00000003"
+    torch_loc = r"W:\label_debug\subsets\edge\00000003.torch"
+
+    visu_label_on_dir(data_loc, torch_loc, 32,  0, 9)
 
 if __name__=="__main__":
     main()

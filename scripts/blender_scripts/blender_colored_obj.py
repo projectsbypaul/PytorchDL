@@ -123,17 +123,17 @@ for area in bpy.context.screen.areas:
 
 # Optional legend
 color_label_map = {
-    'BSpline':   (138, 43, 226, 1.0),
-    'Cone':      (0, 0, 255, 1.0),
-    'Cylinder':  (255, 0, 0, 1.0),
-    'Extrusion': (255, 165, 0, 1.0),
-    'Other':     (128, 128, 128, 1.0),
-    'Plane':     (255, 20, 147, 1.0),
-    'Revolution':(0, 128, 0, 1.0),
-    'Sphere':    (128, 0, 0, 1.0),
-    'Torus':     (0, 255, 255, 1.0),
-    'Void':      (0, 0, 0, 0.0),
+    'BSpline': (138, 43, 226, 1.0),  # purple
+    'Cone': (0, 128, 0, 1.0),  # green
+    'Cylinder': (255, 165, 0, 1.0),  # orange
+    'Plane': (255, 20, 147, 1.0),  # deep pink
+    'Sphere': (128, 0, 0, 1.0),  # maroon
+    'Torus': (0, 255, 255, 1.0),  # cyan
+    'Edge': (255, 255, 0, 1.0),  # yellow
+    'Inside': (255, 0, 0, 1.0),  # red
+    'Outside': (0, 0, 255, 1.0),  # blue
 }
+
 color_label_map_normalized = {
     label: tuple(c / 255 if i < 3 else c for i, c in enumerate(rgba))
     for label, rgba in color_label_map.items()
