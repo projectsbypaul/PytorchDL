@@ -1,11 +1,10 @@
-#packages
+# packages
 import argparse
 import sys
-
-from sympy import false
+import os
 from torch.utils.hipify.hipify_python import str2bool
 
-#project includes
+# project includes
 from entry_points.run_visu import RunVisu
 from entry_points.run_data_utility import RunABCHelperFunctions
 from entry_points.run_training_utility import RunTrainingUtility
@@ -13,22 +12,42 @@ from entry_points.run_validation_utility import RunValidation
 from entry_points.run_job_utility import RunJobUtility
 
 
-def main():
+def _parse_ep_resume(raw):
+    """Accept None / 'None' / 'none' as None, else cast to int with a clear error."""
+    if raw is None:
+        return None
+    if isinstance(raw, str) and raw.strip().lower() == "none":
+        return None
+    try:
+        return int(raw)
+    except (TypeError, ValueError):
+        raise ValueError(
+            f"Invalid resume epoch value: {raw!r}. Use an integer or 'None'."
+        )
 
+
+def main():
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest='module', required=True)
 
-    # module data_utility
+    # -----------------------------
+    # module: data_utility
+    # -----------------------------
     p_data_utility = subparsers.add_parser('data_utility')
-    p_data_utility.add_argument('mode', choices=['create_subsets', 'create_subsets_from_zip','batch_subsets', 'torch_to_hdf5', 'crop_hdf5','help'])
+    p_data_utility.add_argument(
+        'mode',
+        choices=['create_subsets', 'create_subsets_from_zip', 'batch_subsets',
+                 'torch_to_hdf5', 'crop_hdf5', 'help']
+    )
     p_data_utility.add_argument('arg0', type=str, nargs='?')
     p_data_utility.add_argument('arg1', type=str, nargs='?')
     p_data_utility.add_argument('arg2', type=str, nargs='?')
     p_data_utility.add_argument('arg3', type=str, nargs='?')
     p_data_utility.add_argument('arg4', type=str, nargs='?')
 
-
-    # module visualization  (use a different variable name)
+    # -----------------------------
+    # module: visualization
+    # -----------------------------
     p_visualization = subparsers.add_parser('visualization')
     p_visualization.add_argument('mode', choices=['model_on_mesh', 'help'])
     p_visualization.add_argument('arg0', type=str, nargs='?')
@@ -38,7 +57,9 @@ def main():
     p_visualization.add_argument('arg4', type=str, nargs='?')
     p_visualization.add_argument('arg5', type=str, nargs='?')
 
-    # module data_utility
+    # -----------------------------
+    # module: train_utility
+    # -----------------------------
     p_train_utility = subparsers.add_parser('train_utility')
     p_train_utility.add_argument('mode', choices=['train_UNet_16EL', 'train_UNet_Hilbig', 'help'])
     p_train_utility.add_argument('arg0', type=str, nargs='?')
@@ -57,7 +78,9 @@ def main():
     p_train_utility.add_argument('arg13', type=str, nargs='?')
     p_train_utility.add_argument('arg14', type=str, nargs='?')
 
-    # module data_utility
+    # -----------------------------
+    # module: validation_utility
+    # -----------------------------
     p_validation_utility = subparsers.add_parser('validation_utility')
     p_validation_utility.add_argument('mode', choices=['val_segmentation_UNet16', 'help'])
     p_validation_utility.add_argument('arg0', type=str, nargs='?')
@@ -66,7 +89,9 @@ def main():
     p_validation_utility.add_argument('arg3', type=str, nargs='?')
     p_validation_utility.add_argument('arg4', type=str, nargs='?')
 
-    # module job_utility
+    # -----------------------------
+    # module: job_utility
+    # -----------------------------
     p_job_utility = subparsers.add_parser('job_utility')
     p_job_utility.add_argument('mode', choices=['j_create_all', 'j_create_ext', 'j_create_dirs', 'help'])
     p_job_utility.add_argument('arg0', type=str, nargs='?')
@@ -78,6 +103,7 @@ def main():
 
     args = parser.parse_args()
 
+    # -------------- data_utility --------------
     if args.module == 'data_utility':
         if args.mode == 'help' or args.arg0 is None:
             print("Usage:")
@@ -88,49 +114,50 @@ def main():
             print("main.py data_utility torch_to_hdf5 <torch_dir> <out_file>")
             print("main.py data_utility crop_hdf5 <target> <n_samples>")
             sys.exit(0)
+
         elif args.mode == 'create_subsets':
             try:
                 job_file: str = args.arg0
                 source_dir: str = args.arg1
                 target_dir: str = args.arg2
                 n_min_files: int = int(args.arg3)
-                template : str = args.arg4
+                template: str = args.arg4
             except (TypeError, ValueError):
                 print("[ERROR] Invalid or missing arguments for 'create_subsets'.")
                 p_data_utility.print_help()
                 sys.exit(1)
-            # Replace this with your actual function call
+
             RunABCHelperFunctions.run_create_ABC_sub_Dataset_from_job(
                 job_file, source_dir, target_dir, n_min_files, template
             )
+
         elif args.mode == 'create_subsets_from_zip':
             try:
-                source_dir : str = args.arg0
+                source_dir: str = args.arg0
                 job_file: str = args.arg1
-                workspace : str = args.arg2
+                workspace: str = args.arg2
                 template: str = args.arg3
-                batch_count : int = int(args.arg4)
+                batch_count: int = int(args.arg4)
             except (TypeError, ValueError):
                 print("[ERROR] Invalid or missing arguments for 'create_subsets_from_zip'.")
                 p_data_utility.print_help()
                 sys.exit(1)
-            # Replace this with your actual function call
+
             RunABCHelperFunctions.run_compressed_segment_dir_to_dataset_from_job(
                 source_dir, job_file, workspace, template, batch_count
             )
 
-
         elif args.mode == 'batch_subsets':
             try:
-                source_dir : str = args.arg0
+                source_dir: str = args.arg0
                 target_dir: str = args.arg1
-                dataset_name : str = args.arg2
+                dataset_name: str = args.arg2
                 batch_count: int = int(args.arg3)
             except (TypeError, ValueError):
                 print("[ERROR] Invalid or missing arguments for 'batch_subsets'.")
                 p_data_utility.print_help()
                 sys.exit(1)
-            # Replace this with your actual function call
+
             RunABCHelperFunctions.run_batch_ABC_sub_Datasets(
                 source_dir, target_dir, dataset_name, batch_count
             )
@@ -139,25 +166,24 @@ def main():
             try:
                 torch_dir: str = args.arg0
                 out_file: str = args.arg1
-                # fixed_length: int = int(args.arg2)
             except (TypeError, ValueError):
                 print("[ERROR] Invalid or missing arguments for 'torch_to_hdf5'.")
                 p_data_utility.print_help()
                 sys.exit(1)
-            # Replace this with your actual function call
+
             RunABCHelperFunctions.run_torch_to_hdf5(
                 torch_dir, out_file
             )
+
         elif args.mode == 'crop_hdf5':
             try:
                 target: str = args.arg0
                 n_samples: int = int(args.arg1)
-                # fixed_length: int = int(args.arg2)
             except (TypeError, ValueError):
                 print("[ERROR] Invalid or missing arguments for 'crop_hdf5'.")
                 p_data_utility.print_help()
                 sys.exit(1)
-            # Replace this with your actual function call
+
             RunABCHelperFunctions.run_crop_hdf5_dataset(
                 target, n_samples
             )
@@ -167,47 +193,49 @@ def main():
             p_data_utility.print_help()
             sys.exit(1)
 
+    # -------------- visualization --------------
     elif args.module == 'visualization':
         if args.mode == 'help' or args.arg0 is None:
-          print("Usage:\n")
-          print("")
-          print("main.py visualization help")
-          print("main.py visualization model_on_mesh <data_loc> <weight_loc> <save_loc> <kernel_size> <padding> <n_classes>")
-          sys.exit(0)
+            print("Usage:\n")
+            print("main.py visualization help")
+            print("main.py visualization model_on_mesh <data_loc> <weight_loc> <save_loc> <kernel_size> <padding> <n_classes>")
+            sys.exit(0)
+
         elif args.mode == 'model_on_mesh':
             try:
                 data_loc: str = args.arg0
                 weight_loc: str = args.arg1
                 save_loc: str = args.arg2
                 kernel_size: int = int(args.arg3)
-                padding : int = int(args.arg4)
-                n_classes : int = int(args.arg5)
+                padding: int = int(args.arg4)
+                n_classes: int = int(args.arg5)
             except (TypeError, ValueError):
-                print("[ERROR] Invalid or missing arguments for 'create_subsets'.")
-                p_data_utility.print_help()
+                print("[ERROR] Invalid or missing arguments for 'model_on_mesh'.")
+                p_visualization.print_help()
                 sys.exit(1)
 
-            # Replace this with your actual function call
-            RunVisu.run_visu_mesh_model_on_dir(data_loc, weight_loc, save_loc, kernel_size, padding, n_classes)
+            RunVisu.run_visu_mesh_model_on_dir(
+                data_loc, weight_loc, save_loc, kernel_size, padding, n_classes
+            )
+
         else:
-            print("[ERROR] Invalid mode for data_utility.")
-            p_data_utility.print_help()
+            print("[ERROR] Invalid mode for visualization.")
+            p_visualization.print_help()
             sys.exit(1)
 
+    # -------------- train_utility --------------
     elif args.module == 'train_utility':
         if args.mode == 'help' or args.arg0 is None:
             print("Usage:\n")
-            print("  main.py train_utility help")
-            print()
-            print("  main.py train_utility train_UNet3D_16EL \\")
+            print("  main.py train_utility help\n")
+            print("  main.py train_utility train_UNet_16EL \\")
             print("      <model_name> <hdf5_path> <model_weights_loc> <epoch> \\")
             print("      <backup_epochs> <batch_size> <lr> <decay_order> <split> \\")
-            print("      <use_amp> <val_batch_factor> <workers> <n_classes> <model_seed> <ep_restart>")
-            print()
+            print("      <use_amp> <val_batch_factor> <workers> <n_classes> <model_seed> <ep_resume>\n")
             print("  main.py train_utility train_UNet_Hilbig \\")
             print("      <model_name> <hdf5_path> <model_weights_loc> <epoch> \\")
             print("      <backup_epochs> <batch_size> <lr> <decay_order> <split> \\")
-            print("      <use_amp> <val_batch_factor> <workers> <n_classes> <model_seed> <ep_restart>")
+            print("      <use_amp> <val_batch_factor> <workers> <n_classes> <model_seed> <ep_resume>")
             sys.exit(0)
 
         elif args.mode == 'train_UNet_16EL':
@@ -226,19 +254,19 @@ def main():
                 workers: int = int(args.arg11)
                 n_classes: int = int(args.arg12)
                 model_seed: int = int(args.arg13)
-                ep_resume: int = int(args.arg14)
-
+                ep_resume_raw: str | None = args.arg14
             except (TypeError, ValueError):
-                print("[ERROR] Invalid or missing arguments for 'create_subsets'.")
-                p_data_utility.print_help()
+                print("[ERROR] Invalid or missing arguments for 'train_UNet_16EL'.")
+                p_train_utility.print_help()
                 sys.exit(1)
 
-            # Replace this with your actual function call
+            ep_resume = _parse_ep_resume(ep_resume_raw)
+
             RunTrainingUtility.run_hdf5_train_UNet_3D_Segmentation(
-            model_name, hdf5_path, model_weights_loc, epoch, backup_epochs, batch_size,
-            lr, decay_order, split, use_amp, val_batch_factor, workers, n_classes, model_seed,
-            model_type="UNet_16EL", resume_epoch=ep_resume
-        )
+                model_name, hdf5_path, model_weights_loc, epoch, backup_epochs, batch_size,
+                lr, decay_order, split, use_amp, val_batch_factor, workers, n_classes, model_seed,
+                model_type="UNet_16EL", raw_ep_resume=ep_resume_raw  # if the callee expects raw, pass ep_resume if it expects parsed
+            )
 
         elif args.mode == 'train_UNet_Hilbig':
             try:
@@ -256,33 +284,33 @@ def main():
                 workers: int = int(args.arg11)
                 n_classes: int = int(args.arg12)
                 model_seed: int = int(args.arg13)
-                ep_resume: int = int(args.arg14)
-
+                ep_resume_raw: str | None = args.arg14
             except (TypeError, ValueError):
-                print("[ERROR] Invalid or missing arguments for 'create_subsets'.")
-                p_data_utility.print_help()
+                print("[ERROR] Invalid or missing arguments for 'train_UNet_Hilbig'.")
+                p_train_utility.print_help()
                 sys.exit(1)
 
-            # Replace this with your actual function call
+            ep_resume = _parse_ep_resume(ep_resume_raw)
+
             RunTrainingUtility.run_hdf5_train_UNet_3D_Segmentation(
-            model_name, hdf5_path, model_weights_loc, epoch, backup_epochs, batch_size,
-            lr, decay_order, split, use_amp, val_batch_factor, workers, n_classes, model_seed,
-            model_type="UNet_Hilbig", resume_epoch=ep_resume
-        )
+                model_name, hdf5_path, model_weights_loc, epoch, backup_epochs, batch_size,
+                lr, decay_order, split, use_amp, val_batch_factor, workers, n_classes, model_seed,
+                model_type="UNet_Hilbig", raw_ep_resume=ep_resume_raw  # same note as above
+            )
 
         else:
-            print("[ERROR] Invalid mode for data_utility.")
-            p_data_utility.print_help()
+            print("[ERROR] Invalid mode for train_utility.")
+            p_train_utility.print_help()
             sys.exit(1)
 
+    # -------------- validation_utility --------------
     elif args.module == 'validation_utility':
         if args.mode == 'help' or args.arg0 is None:
             print("Usage:\n")
-            print("")
             print("main.py validation_utility help")
-            print(
-                "main.py validation_utility val_segmentation_UNet16 <val_dataset> <weights_loc> <save_loc> <kernel_size> <padding>")
+            print("main.py validation_utility val_segmentation_UNet16 <val_dataset> <weights_loc> <save_loc> <kernel_size> <padding>")
             sys.exit(0)
+
         elif args.mode == 'val_segmentation_UNet16':
             try:
                 data_loc: str = args.arg0
@@ -292,22 +320,22 @@ def main():
                 padding: int = int(args.arg4)
             except (TypeError, ValueError):
                 print("[ERROR] Invalid or missing arguments for 'val_segmentation_UNet16'.")
-                p_data_utility.print_help()
+                p_validation_utility.print_help()
                 sys.exit(1)
 
-            # Replace this with your actual function call
-            RunValidation.run_validate_segmentation_model(data_loc, weight_loc, save_loc, kernel_size, padding)
+            RunValidation.run_validate_segmentation_model(
+                data_loc, weight_loc, save_loc, kernel_size, padding
+            )
+
         else:
             print("[ERROR] Invalid mode for validation_utility.")
-            p_data_utility.print_help()
+            p_validation_utility.print_help()
             sys.exit(1)
 
-    #choices=['j_create_all', 'j_create_ext', 'j_create_dirs', 'help'])
-
+    # -------------- job_utility --------------
     elif args.module == 'job_utility':
         if args.mode == 'help' or args.arg0 is None:
             print("Usage:\n")
-            print("")
             print("main.py job_utility help")
             print(
                 "main.py job_utility j_create_all <root> <instance_count> <output_dir> [abs_path:False] [recursive:False]\n"
@@ -315,6 +343,7 @@ def main():
                 "main.py job_utility j_create_dirs <root> <instance_count> <output_dir> [abs_path:False]\n"
             )
             sys.exit(0)
+
         elif args.mode == 'j_create_all':
             try:
                 root: str = args.arg0
@@ -327,14 +356,14 @@ def main():
                 p_job_utility.print_help()
                 sys.exit(1)
 
-            # Replace this with your actual function call
             RunJobUtility.run_make_jobs_all(root, instance_count, output_dir, abs_path, recursive)
+
         elif args.mode == 'j_create_ext':
             try:
                 root: str = args.arg0
                 instance_count: int = int(args.arg1)
                 ext_arg = args.arg2
-                extensions : [str] = [e if e.startswith(".") else "." + e for e in ext_arg.replace(",", " ").split()]
+                extensions: [str] = [e if e.startswith(".") else "." + e for e in ext_arg.replace(",", " ").split()]
                 output_dir: str = args.arg3
                 abs_path: bool = str2bool(args.arg4)
                 recursive: bool = str2bool(args.arg5)
@@ -343,8 +372,8 @@ def main():
                 p_job_utility.print_help()
                 sys.exit(1)
 
-            # Replace this with your actual function call
             RunJobUtility.run_make_jobs_ext(root, instance_count, extensions, output_dir, abs_path, recursive)
+
         elif args.mode == 'j_create_dirs':
             try:
                 root: str = args.arg0
@@ -356,7 +385,6 @@ def main():
                 p_job_utility.print_help()
                 sys.exit(1)
 
-            # Replace this with your actual function call
             RunJobUtility.run_make_jobs_dirs(root, instance_count, output_dir, abs_path)
 
         else:
@@ -369,15 +397,8 @@ def main():
         sys.exit(1)
 
 
-
-
-
 if __name__ == '__main__':
-    # For debugging, uncomment the next line:
-     # weights_loc = r'H:\ABC_Demo\weights\UNet3D_SDF_16EL_n_class_10_lr[1e-05]_lrdc[1e-01]_bs4_save_100.pth'
-    # save_loc = r"H:/ABC_Demo/blender/color_map_learned.pkl"
-    # kernel_size = 16
-    # padding = 4
-    # n_classes = 10
-    # sys.argv = ["main.py", "visualization", "model_on_mesh", data_loc, weights_loc, save_loc, str(kernel_size), str(padding), str(n_classes)]
+    # Debug toggles (uncomment while diagnosing CLI issues):
+    # print("[DEBUG] __file__:", os.path.abspath(__file__), file=sys.stderr)
+    # print("[DEBUG] sys.argv:", sys.argv, file=sys.stderr)
     main()

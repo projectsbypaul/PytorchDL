@@ -19,7 +19,13 @@ class RunTrainingUtility:
                      n_classes: int,
                      model_seed: int,
                      model_type:str,
-                     resume_epoch: int):
+                     raw_ep_resume: str):
+
+
+        if raw_ep_resume is None or (isinstance(raw_ep_resume, str) and raw_ep_resume.lower() == "none"):
+            resume_epoch = None
+        else:
+            resume_epoch = int(raw_ep_resume)
 
         train_model_hdf5(
             model_name, hdf5_path, model_weights_loc, epochs, backup_epochs, batch_size,
