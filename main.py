@@ -359,17 +359,19 @@ def main():
             print("Usage:\n")
             print("main.py validation_utility help")
             print(
-                "main.py validation_utility val_segmentation_UNet16 <val_dataset> <weights_loc> <save_loc> <kernel_size> <padding>"
+                "main.py validation_utility val_segmentation_UNet <val_dataset> <weights_loc> <save_loc> <kernel_size> <padding> <n_classes> <model_type>"
             )
             sys.exit(0)
 
-        elif args.mode == 'val_segmentation_UNet16':
+        elif args.mode == 'val_segmentation_UNet':
             try:
                 data_loc: str = args.arg0
                 weight_loc: str = args.arg1
                 save_loc: str = args.arg2
                 kernel_size: int = int(args.arg3)
                 padding: int = int(args.arg4)
+                n_classes: int = int(args.arg5)
+                model_type: str = args.arg6
             except (TypeError, ValueError):
                 print(
                     "[ERROR] Invalid or missing arguments for 'val_segmentation_UNet16'."
@@ -378,7 +380,7 @@ def main():
                 sys.exit(1)
 
             RunValidation.run_validate_segmentation_model(
-                data_loc, weight_loc, save_loc, kernel_size, padding
+                data_loc, weight_loc, save_loc, kernel_size, padding, n_classes, model_type
             )
 
         else:

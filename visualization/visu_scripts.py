@@ -14,6 +14,32 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 from matplotlib.colors import ListedColormap
 
+def predict_in_batches(model, data, batch_size, device, use_amp=True, dtype=torch.float16):
+    model.eval()
+    preds = []
+    with torch.inference_mode():
+        for s in range(0, len(data), batch_size):
+            e = s + batch_size
+            batch = data[s:e].to(device, non_blocking=True)
+
+            if use_amp:
+                # bfloat16 is safer on Ampere+; switch dtype to torch.bfloat16 if supported
+                autocast_dtype = dtype if torch.cuda.is_available() else None
+                with torch.cuda.amp.autocast(dtype=autocast_dtype):
+                    out = model(batch)
+            else:
+                out = model(batch)
+
+            # argmax across class dim=1 (typical for segmentation/classification)
+            pred = out.argmax(dim=1).cpu().numpy()
+            preds.append(pred)
+
+            # free up GPU ASAP
+            del out, batch
+            torch.cuda.empty_cache()  # usually not needed, but helps after large peaks
+
+    return np.concatenate(preds, axis=0)
+
 
 def visu_mesh_label(data_loc : str, save_loc : str):
 
@@ -273,12 +299,9 @@ def visu_voxel_on_dir(data_loc: str, weights_loc: str, kernel_size: int, padding
     model.eval()
 
     print("model predicting outputs...")
-    with torch.no_grad():
-        model_input = model_input.to(device)
-        model_output = model(model_input)          # (N, C, ks, ks, ks)
-        model_output = model_output.cpu()
-        _, prediction = torch.max(model_output, 1) # (N, ks, ks, ks)
-        prediction = prediction.numpy()            # int64
+    device = torch.device("cuda", 0)
+    batch_size = 4  # start tiny, then increase if it fits
+    prediction = predict_in_batches(model, model_input, batch_size, device, use_amp=True, dtype=torch.bfloat16)
 
     # -----------------------------
     # 3) Assemble full label grid
@@ -295,7 +318,7 @@ def visu_voxel_on_dir(data_loc: str, weights_loc: str, kernel_size: int, padding
     offsets = [(-bottom_coord + np.array(o, dtype=int)) for o in origins]
 
     # Color/opacity template
-    color_temp     = color_templates.edge_color_template_abc_sorted()
+    color_temp     = color_templates.edge_color_template_abc()
     class_list     = color_templates.get_class_list(color_temp)          # ordered names -> indices
     custom_colors  = color_templates.get_color_dict(color_temp)          # {name: (R,G,B)}
     custom_opacity = color_templates.get_opacity_dict(color_temp)        # {name: alpha}
@@ -356,11 +379,11 @@ def visu_voxel_on_dir(data_loc: str, weights_loc: str, kernel_size: int, padding
             print("No surface voxels remain after filtering.")
             return
 
-    coords       = np.argwhere(keep)   # (K, 3)
+    coords = np.argwhere(keep)   # (K, 3)
     kept_labels  = labels[keep]
 
     if stride > 1:
-        coords      = coords[::stride]
+        coords = coords[::stride]
         kept_labels = kept_labels[::stride]
 
     # -----------------------------
@@ -696,12 +719,16 @@ def draw_voxel_slice_from_dir(
     model.eval()
 
     # 4. Model Predict
+    predictions = []
+    batch_size = 32
+
     with torch.no_grad():
-        model_input = model_input.to(device)
-        model_output = model(model_input)
-        model_output = model_output.cpu()
-        _, prediction = torch.max(model_output, 1)
-        prediction = prediction.cpu().numpy()
+        for start in range(0, len(model_input), batch_size):
+            end = start + batch_size
+            batch = model_input[start:end].to(device)
+            output = model(batch)
+            _, pred = torch.max(output, 1)
+            predictions.append(pred.cpu().numpy())
 
     # 5. Assemble full voxel grid
     origins = seg_info["ORIGIN_CONTAINER"]["data"]
@@ -775,10 +802,10 @@ def draw_voxel_slice_from_dir(
     plt.show()
 
 def main():
-    data_loc = r"W:\label_debug\target\00000003"
-    torch_loc = r"W:\label_debug\subsets\edge\00000003.torch"
+    data_loc = r"W:\label_debug\target\Cube_Refined"
+    weights_loc = r"W:\hpc_workloads\hpc_models\SegDemoEdge_32\SegDemoEdge_32_save_95.pth"
 
-    visu_label_on_dir(data_loc, torch_loc, 32,  0, 9)
+    visu_voxel_on_dir(data_loc, weights_loc, 32,  8, 9)
 
 if __name__=="__main__":
     main()

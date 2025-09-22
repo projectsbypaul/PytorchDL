@@ -7,7 +7,7 @@ import torch
 import pickle
 from utility.data_exchange import cppIOexcavator
 import numpy as np
-from dl_torch.models.UNet3D_Segmentation import UNet3D_16EL
+from dl_torch.models.UNet3D_Segmentation import UNet_Hilbig, UNet3D_16EL
 from dl_torch.model_utility import Custom_Metrics
 from pathlib import Path
 
@@ -64,7 +64,55 @@ def val_segmentation_stats_on_file(val_result_loc :  str):
 
     return mean_val, median_val, mode_val, p25, p75
 
-def validate_segmentation_model(val_dataset_loc: str, weights_loc: str, save_loc: str, kernel_size: int, padding: int):
+def validate_segmentation_model(
+    val_dataset_loc: str,
+    weights_loc: str,
+    save_loc: str,
+    kernel_size: int,
+    padding: int,
+    n_classes: int,
+    model_type: str = "default"
+):
+    """
+    Validate a 3D segmentation model on a dataset of pre-processed samples.
+
+    Args:
+        val_dataset_loc (str):
+            Path to the validation dataset root directory.
+            Each sample is expected to be a subdirectory containing:
+              - "segmentation_data.dat" (metadata, origins, face/grid maps)
+              - "segmentation_data_segments.bin" (voxelized SDF segments)
+
+        weights_loc (str):
+            Path to the model checkpoint file (.pth or similar).
+            Supports both raw `state_dict` checkpoints and dicts with "state_dict".
+
+        save_loc (str):
+            Output path for storing the evaluation results.
+            Results are written as a pickle file containing a list of tuples:
+            [sample_index, sample_name, IoU_score].
+
+        kernel_size (int):
+            Side length (in voxels) of each cubic patch used when reconstructing
+            the prediction into a full voxel grid.
+
+        padding (int):
+            Overlap/trim applied to each cubic patch during voxel reconstruction.
+            Helps avoid double-counting at patch borders.
+            The effective patch region written into the full grid is
+            [padding//2 : kernel_size - padding//2].
+
+        n_classes (int):
+            Number of segmentation classes to predict.
+            The model is constructed with this many output channels.
+
+        model_type (str, default="default"):
+            Which segmentation network variant to use.
+            Must be one of:
+                - "default"     =>  UNet_Hilbig
+                - "UNet_Hilbig" =>  UNet_Hilbig
+                - "UNet_16EL"   =>  UNet3D_16EL
+    """
 
     val_sample_names = os.listdir(val_dataset_loc)
     val_sample_path = [os.path.join(val_dataset_loc, name) for name in val_sample_names]
@@ -111,7 +159,22 @@ def validate_segmentation_model(val_dataset_loc: str, weights_loc: str, save_loc
         device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
         print("Using device:", device)
 
-        model = UNet3D_16EL(in_channels=1, out_channels=8)
+        # Set up dictionary
+        model = None
+
+        model_list = {
+            "default": 0,
+            "UNet_Hilbig": 1,
+            "UNet_16EL": 2
+        }
+
+        match model_list[model_type]:
+            case 0:
+                model = UNet_Hilbig(in_channels=1, out_channels=n_classes)
+            case 1:
+                model = UNet_Hilbig(in_channels=1, out_channels=n_classes)
+            case 2:
+                model = UNet3D_16EL(in_channels=1, out_channels=n_classes)
 
         # Safe checkpoint load (supports raw or 'state_dict'-wrapped)
         ckpt = torch.load(weights_loc, map_location='cpu')

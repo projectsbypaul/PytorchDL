@@ -16,7 +16,6 @@ import zipfile
 import shutil
 from utility.job_utility import job_creation
 
-
 # -----------------------------
 # Helpers
 # -----------------------------
