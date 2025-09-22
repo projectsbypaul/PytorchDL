@@ -71,7 +71,8 @@ def validate_segmentation_model(
     kernel_size: int,
     padding: int,
     n_classes: int,
-    model_type: str = "default"
+    model_type: str = "default",
+    template: str = "default"
 ):
     """
     Validate a 3D segmentation model on a dataset of pre-processed samples.
@@ -112,6 +113,11 @@ def validate_segmentation_model(
                 - "default"     =>  UNet_Hilbig
                 - "UNet_Hilbig" =>  UNet_Hilbig
                 - "UNet_16EL"   =>  UNet3D_16EL
+        template (str, default="default"):
+           Used class label template
+           Must be one of:
+                -"default"         => Inside_Outside
+                -"inside_outside"  => Inside_Outside
     """
 
     val_sample_names = os.listdir(val_dataset_loc)
@@ -260,9 +266,21 @@ def validate_segmentation_model(
                   f"{oob_voxel_writes} voxel writes skipped. Examples (dim, patch, idx, dim_size, local, offset): "
                   f"{oob_voxel_examples}")
 
-        # color/classes template (your chosen template)
-        color_temp = color_templates.inside_outside_color_template_abc()
-        index_to_class = color_templates.get_index_to_class_dict(color_temp)
+            # Set up dictionary
+            color_temp = None
+
+
+            template_list = {
+                "default": 0,
+                "inside_outside": 1,
+            }
+            # color/classes template (your chosen template)
+            match template_list[template]:
+                case 0:
+                    color_temp = color_templates.inside_outside_color_template_abc()
+                case 1:
+                    color_temp = color_templates.inside_outside_color_template_abc()
+
         class_to_index = color_templates.get_class_to_index_dict(color_temp)
 
         # map color to faces
@@ -310,10 +328,7 @@ def validate_segmentation_model(
 
 
 def main():
-    stat_dir = r"W:\hpc_workloads\hpc_val\taguchi_L9"
-    stat_out = r"W:\hpc_workloads\hpc_val\Block_B_result_2.csv"
-
-    val_segmentation_stats_on_dir(stat_dir, stat_out)
+    pass
 
 
 
