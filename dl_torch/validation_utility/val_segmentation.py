@@ -312,14 +312,36 @@ def validate_segmentation_model(
                   f"{oob_face_reads}/{len(face_to_grid_index)} face lookups OOB. "
                   f"Examples (i, face_idx, grid_idx, grid_shape): {oob_face_examples}")
 
-        ftm_ground_truth = list(ftm_ground_truth.values())
-        ftm_ground_truth = [class_to_index[item] for item in ftm_ground_truth]
+        # Turn dict of labels -> class names into a list of class names
+        ftm_ground_truth_vals = list(ftm_ground_truth.values())
 
-        sample_iou = Custom_Metrics.mesh_IOU(ftm_prediction, ftm_ground_truth).item()
+        # Unique classes present in this sample
+        uniques = np.unique(ftm_ground_truth_vals)
 
-        print(f"Sample {s_index}: Mesh {sample_name} Intersection Over Union {sample_iou:.6f}")
+        # Validate against template's class list
+        class_list = color_templates.get_class_list(color_temp)
 
-        sample_result.append([s_index, sample_name, sample_iou])
+        faulty_class = [c for c in uniques if c not in class_list]
+        valid_classes = len(faulty_class) == 0
+
+        if valid_classes:
+            # Map class names -> indices
+            try:
+                ftm_ground_truth_idx = [class_to_index[c] for c in ftm_ground_truth_vals]
+            except KeyError as e:
+                # In case class_to_index is missing a class that's otherwise valid
+                print(f"Missing mapping for class {e!s} ...skipping Sample {s_index} Mesh {sample_name}")
+            else:
+                sample_iou = Custom_Metrics.mesh_IOU(ftm_prediction, ftm_ground_truth_idx).item()
+                print(f"Sample {s_index}: Mesh {sample_name} Intersection Over Union {sample_iou:.6f}")
+                sample_result.append([s_index, sample_name, sample_iou])
+        else:
+            print(
+                f"Faulty classes detected: {faulty_class.tolist() if hasattr(faulty_class, 'tolist') else faulty_class} "
+                f"...skipping Sample {s_index} Mesh {sample_name}")
+
+
+
 
     # saving
     with open(save_loc, "wb") as f:
@@ -327,7 +349,13 @@ def validate_segmentation_model(
 
 
 def main():
-    pass
+    val_dataset_loc = r"W:\hpc_workloads\hpc_datasets\val_data_run_00\val_2500_32_pd8_bw8_nk3_20250922-085956\unpacked"
+    weights_loc = "W:\hpc_workloads\hpc_models\SegDemoInOut_32\SegDemoInOut_32_save_100.pth"
+    save_loc = "/data/horse/ws/pasc116h-val_2500_16_pd4_bw8_nk3_20250924-190657/result.bin"
+    ks = 32
+    padding = 8
+    n_classes=8
+    validate_segmentation_model(val_dataset_loc, weights_loc, save_loc, ks, padding, n_classes)
 
 
 

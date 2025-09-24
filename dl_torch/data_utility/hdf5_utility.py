@@ -1,7 +1,13 @@
 import os
 import argparse
 from typing import Optional
+
+from pyarrow import int64
+
 from dl_torch.data_utility.HDF5Dataset import HDF5Dataset
+from visualization import color_templates
+import numpy as np
+import pandas as pd
 
 def _suffix_path(src_path: str, n_samples: int) -> str:
     base, ext = os.path.splitext(src_path)
@@ -62,9 +68,41 @@ def screen_hdf_dataset(src_path: str, template: str = "default"):
 
     ds_len = ds.__len__()
 
-    ds_item = ds.__getitem__(2)
+    class_temp = color_templates.inside_outside_color_template_abc()
 
-    print()
+    class_list = color_templates.get_class_list(class_temp)
+    index_to_class = color_templates.get_index_to_class_dict(class_temp)
+    class_to_index = color_templates.get_class_to_index_dict(class_temp)
+
+
+
+    count_collection = np.zeros((ds_len, len(class_list)), dtype=np.int32)
+
+    for i in range(ds_len):
+
+        ds_item = ds.__getitem__(i)
+
+        labels = ds_item[1]
+
+
+        counter = np.zeros(len(class_list))
+
+        for item in class_list:
+            index = int(class_to_index[item])
+            count = np.count_nonzero(labels == index)
+            counter[index] += count
+
+        count_collection[i] = counter
+        print(f"Evaluated class count of item: {i} of {ds_len}")
+
+
+    h5_df = pd.DataFrame(columns=class_list, data=count_collection, dtype=np.int32)
+
+
+
+
+
+
 
 
 def main():
