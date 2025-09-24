@@ -266,20 +266,19 @@ def validate_segmentation_model(
                   f"{oob_voxel_writes} voxel writes skipped. Examples (dim, patch, idx, dim_size, local, offset): "
                   f"{oob_voxel_examples}")
 
-            # Set up dictionary
-            color_temp = None
+        # Set up dictionary
+        color_temp = None
 
-
-            template_list = {
-                "default": 0,
-                "inside_outside": 1,
-            }
-            # color/classes template (your chosen template)
-            match template_list[template]:
-                case 0:
-                    color_temp = color_templates.inside_outside_color_template_abc()
-                case 1:
-                    color_temp = color_templates.inside_outside_color_template_abc()
+        template_list = {
+            "default": 0,
+            "inside_outside": 1,
+        }
+        # color/classes template (your chosen template)
+        match template_list[template]:
+            case 0:
+                color_temp = color_templates.inside_outside_color_template_abc()
+            case 1:
+                color_temp = color_templates.inside_outside_color_template_abc()
 
         class_to_index = color_templates.get_class_to_index_dict(color_temp)
 
