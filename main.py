@@ -84,6 +84,9 @@ def main():
     p_validation_utility.add_argument('arg2', type=str, nargs='?')
     p_validation_utility.add_argument('arg3', type=str, nargs='?')
     p_validation_utility.add_argument('arg4', type=str, nargs='?')
+    p_validation_utility.add_argument('arg5', type=str, nargs='?')
+    p_validation_utility.add_argument('arg6', type=str, nargs='?')
+    p_validation_utility.add_argument('arg7', type=str, nargs='?')
 
     # -----------------------------
     # module: job_utility
