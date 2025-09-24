@@ -375,7 +375,7 @@ def main():
                 template: str = args.arg7
             except (TypeError, ValueError):
                 print(
-                    "[ERROR] Invalid or missing arguments for 'val_segmentation_UNet16'."
+                    "[ERROR] Invalid or missing arguments for 'val_segmentation_UNet'."
                 )
                 p_validation_utility.print_help()
                 sys.exit(1)
