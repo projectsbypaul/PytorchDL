@@ -77,7 +77,7 @@ def main():
     # -----------------------------
     p_validation_utility = subparsers.add_parser('validation_utility')
     p_validation_utility.add_argument(
-        'mode', choices=['val_segmentation_UNet16', 'help']
+        'mode', choices=['val_segmentation_UNet', 'help']
     )
     p_validation_utility.add_argument('arg0', type=str, nargs='?')
     p_validation_utility.add_argument('arg1', type=str, nargs='?')

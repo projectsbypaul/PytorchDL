@@ -53,8 +53,23 @@ def crop_hdf_dataset(
 
     return out_path
 
+def screen_hdf_dataset(src_path: str, template: str = "default"):
+    # Print summary
+    print("Screening dataset:")
+    HDF5Dataset.print_file_info(src_path)
+
+    ds = HDF5Dataset(src_path)
+
+    ds_len = ds.__len__()
+
+    ds_item = ds.__getitem__(2)
+
+    print()
+
+
 def main():
-    pass
+    ds_path = r"W:\hpc_workloads\hpc_datasets\train_data\inside_outside_A_32_pd0_bw8_nk3_20250915-110203\inside_outside_A_32_pd0_bw8_nk3_20250915-110203_dataset.h5"
+    screen_hdf_dataset(ds_path)
 
 if __name__ == "__main__":
     main()
