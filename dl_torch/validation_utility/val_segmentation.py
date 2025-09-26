@@ -132,6 +132,8 @@ def validate_segmentation_model(
 
     sample_result = []
 
+    ccm_collection = []
+
     for s_index, sample in enumerate(val_sample_path):
         sample = Path(sample)
         sample_name = sample.name
@@ -332,6 +334,8 @@ def validate_segmentation_model(
                 # In case class_to_index is missing a class that's otherwise valid
                 print(f"Missing mapping for class {e!s} ...skipping Sample {s_index} Mesh {sample_name}")
             else:
+                ccm = Custom_Metrics.mesh_class_confusion_matrix(ftm_prediction, ftm_ground_truth, class_to_index)
+                ccm_collection.append(ccm)
                 sample_iou = Custom_Metrics.mesh_IOU(ftm_prediction, ftm_ground_truth_idx).item()
                 print(f"Sample {s_index}: Mesh {sample_name} Intersection Over Union {sample_iou:.6f}")
                 sample_result.append([s_index, sample_name, sample_iou])
@@ -340,18 +344,29 @@ def validate_segmentation_model(
                 f"Faulty classes detected: {faulty_class.tolist() if hasattr(faulty_class, 'tolist') else faulty_class} "
                 f"...skipping Sample {s_index} Mesh {sample_name}")
 
+    ccm_collection = np.asarray(ccm_collection)
 
+    ccm_aggregated = np.sum(ccm_collection, axis=0)
 
+    print(ccm_aggregated)
+
+    p = Path(save_loc)
+    save_loc_ccm = str(p.with_name(p.stem + "_mcm" + p.suffix))
 
     # saving
     with open(save_loc, "wb") as f:
         pickle.dump(sample_result, f)
+        f.close()
+
+    with open(save_loc_ccm, "wb") as f:
+        pickle.dump(ccm_aggregated, f)
+        f.close()
 
 
 def main():
     val_dataset_loc = r"W:\hpc_workloads\hpc_datasets\val_data_run_00\val_2500_32_pd8_bw8_nk3_20250922-085956\unpacked"
     weights_loc = "W:\hpc_workloads\hpc_models\SegDemoInOut_32\SegDemoInOut_32_save_100.pth"
-    save_loc = "/data/horse/ws/pasc116h-val_2500_16_pd4_bw8_nk3_20250924-190657/result.bin"
+    save_loc = r"W:\hpc_workloads\hpc_val\result.bin"
     ks = 32
     padding = 8
     n_classes=8

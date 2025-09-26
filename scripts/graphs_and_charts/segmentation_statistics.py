@@ -1,15 +1,17 @@
 import pickle
 import random
-
+import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
-from scipy.stats import mode
+import matplotlib.colors as mcolors
 import pandas as pd
 import os
+from visualization import color_templates
 from  dl_torch.data_utility.HelperFunctionsABC import __get_ABC_bin_array_from_segment_dir, __get_highest_count_class
 from utility.data_exchange import cppIO
 from dl_torch.data_utility import DataParsing
 from scipy import stats
+import matplotlib.patches as patches
 
 def __balance_dataset():
 
@@ -199,6 +201,74 @@ def __data_class_contribution():
     # pip install pyarrow pandas
     df_statistics.to_parquet(os.path.join(save_dir,os.path.basename(segment_dir) + ".parquet"), engine='pyarrow', compression='snappy')
 
+def __plot_confusion_matrix(ccm_result_loc: str, class_plate):
+
+    class_list = color_templates.get_class_list(class_plate)
+
+    with open(ccm_result_loc, "rb") as f:
+        ccm = pickle.load(f)
+
+    n_predictions = np.sum(ccm, axis=1)
+
+    ccm_norm = []
+
+    for i in range(ccm.shape[0]):
+        row = ccm[i]
+        if n_predictions[i] > 0:
+            row = row / n_predictions[i]
+
+        ccm_norm.append(row)
+
+    ccm_norm = np.asarray(ccm_norm)
+
+    cmap = mcolors.LinearSegmentedColormap.from_list(
+        "white_red_green",
+        [(0.0, "#ffffffff"),
+         (0.5, "#5e65dbb8"),
+         (1.0, "#00dc73ff")]
+    )
+
+    # Plot
+    sns.heatmap(
+        ccm_norm,
+        annot=True,
+        fmt=".2f",
+        cmap=cmap,
+        vmin=0, vmax=1,
+        xticklabels=class_list,
+        yticklabels=class_list,
+        cbar=True,
+        linewidths = 0.5,
+        linecolor = "black"
+    )
+    # plt.xlabel("Predicted Label")
+    # plt.ylabel("True Label")
+    plt.title("Confusion Matrix",)
+
+    # Put x-axis labels on top
+    plt.gca().xaxis.set_ticks_position("top")
+    plt.gca().xaxis.set_label_position("top")
+
+    # Rotate all tick labels
+    plt.xticks(rotation=45)
+    plt.yticks(rotation=45)
+
+    ax = plt.gca()
+
+    # Make all four spines (borders) visible and thicker
+    for spine in ax.spines.values():
+        spine.set_visible(True)
+        spine.set_linewidth(0.5)
+        spine.set_edgecolor("black")
+
+    # Optional: remove ticks from the bottom/right axes
+    ax.tick_params(bottom=False, right=False)
+
+    plt.tight_layout()
+    plt.show()
+
+
+
 def __histogramm_segmentation_samples(val_result_loc :  str):
 
     # create model signature
@@ -267,8 +337,9 @@ def __histogramm_segmentation_samples(val_result_loc :  str):
     plt.show()
 
 def main():
-    stats_file = r"W:\hpc_workloads\hpc_val\taguchi_L9\taguchi_L9_23_val_result.bin"
-    __histogramm_segmentation_samples(stats_file)
+    stats_file = r"W:\hpc_workloads\hpc_val\result_mcm.bin"
+    template = color_templates.inside_outside_color_template_abc()
+    __plot_confusion_matrix(stats_file, template)
 
 
 

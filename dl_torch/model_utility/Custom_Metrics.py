@@ -1,4 +1,5 @@
 import torch
+import numpy as np
 
 
 def voxel_accuracy(output, target, ignore_index=None):
@@ -7,10 +8,23 @@ def voxel_accuracy(output, target, ignore_index=None):
         mask = target != ignore_index
         correct = (preds[mask] == target[mask]).float()
         return correct.sum() / mask.sum()
+
     else:
         correct = (preds == target).float()
         return correct.sum() / correct.numel()
 
+def mesh_class_confusion_matrix(ftm_prediction, ftm_ground_truth, class_to_index):
+
+    n_classes = len(class_to_index.keys())
+
+    ccm = np.zeros((n_classes, n_classes), dtype=np.int32)
+
+    ftm_ground_truth = [class_to_index[element] for element in ftm_ground_truth.values()]
+
+    for i in range(len(ftm_prediction)):
+        ccm[ftm_ground_truth[i], ftm_prediction[i]] += 1
+
+    return ccm
 
 def mesh_IOU(ftm_prediction, ftm_ground_truth):
     # Convert lists to tensors if necessary
