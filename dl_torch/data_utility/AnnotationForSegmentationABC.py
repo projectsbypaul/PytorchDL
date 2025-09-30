@@ -753,9 +753,9 @@ def compressed_segment_dir_to_dataset(segment_dir_zip : [str], workspace_dir, te
 
 
 def main():
-    source = r"W:\label_debug\target"
-    torch_dir = r"W:\label_debug\subsets\edge"
-    create_ABC_sub_Dataset(source, torch_dir, 2 , "edge")
+    source = r"H:\ws_hpc_workloads\hpc_datasets\train_data\train_19000_ks32swo8nbw8nk3_20250927-111158\output_train_19000_ks32swo8nbw8nk3_20250927-111158_results"
+    torch_dir = r"H:\ws_hpc_workloads\hpc_datasets\train_data\train_19000_ks32swo8nbw8nk3_20250927-111158\torch_train_19000_ks32swo8nbw8nk3_20250927-111158_results\subsets"
+    create_ABC_sub_Dataset(source, torch_dir, 2 , "inside_outside")
 
 if __name__ == "__main__":
     main()

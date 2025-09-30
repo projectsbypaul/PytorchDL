@@ -12,6 +12,7 @@ from dl_torch.data_utility.HDF5Dataset import HDF5Dataset
 from visualization import color_templates
 import numpy as np
 import pandas as pd
+import random
 
 def _suffix_path(src_path: str, n_samples: int) -> str:
     base, ext = os.path.splitext(src_path)
@@ -63,6 +64,16 @@ def crop_hdf_dataset(
 
     return out_path
 
+def crop_hdf_by_class(src_path: str, result_loc: str, out_path: str, n_samples: int, ignore_index, rng_seed = None):
+
+    uniques_classes, index_container = __get_indicis_by_class(result_loc, ignore_index)
+    sampled_index_container = __sample_indicis_per_class(index_container, n_samples, rng_seed)
+    sampled_index_container = __flatten_index_container(sampled_index_container)
+
+    hdf_dataset = HDF5Dataset(src_path)
+    hdf_dataset.set_active_selection(sampled_index_container)
+    hdf_dataset.export_active_selection(out_path)
+
 
 def screen_hdf_dataset(src_path: str, result_loc: str,  template: str = "default"):
     # Print summary
@@ -76,6 +87,7 @@ def screen_hdf_dataset(src_path: str, result_loc: str,  template: str = "default
     class_temp = color_templates.inside_outside_color_template_abc()
 
     class_list = color_templates.get_class_list(class_temp)
+
     class_to_index = color_templates.get_class_to_index_dict(class_temp)
 
 
@@ -102,11 +114,83 @@ def screen_hdf_dataset(src_path: str, result_loc: str,  template: str = "default
     with open(result_loc, "wb") as f:
         pickle.dump(count_collection,f)
 
+def __flatten_index_container(index_container):
 
+    n_entries = 0
+    glob_index = 0
+
+    for element in index_container:
+        n_entries += len(element)
+
+    flat_index_container = np.ndarray(shape=n_entries)
+
+
+    for entry in index_container:
+        for element in entry:
+            flat_index_container[glob_index] = element
+            glob_index+= 1
+
+    if n_entries != glob_index:
+        raise ValueError(
+            f"Mismatch: not all flat containers entries received a values "
+        )
+
+    return  flat_index_container
+
+
+def __sample_indicis_per_class(index_container, n_sample : int, rng_seed = None):
+
+    random.seed(rng_seed)
+
+    sampled_index_container = []
+    for entry in index_container:
+        if len(entry) > n_sample:
+            sampled_entry = random.sample(entry, n_sample)
+            sampled_index_container.append(sampled_entry)
+        else:
+            sampled_index_container.append(entry)
+
+    return sampled_index_container
+
+def __get_indicis_by_class(result_loc, ignore_index):
+
+    # ---- load ----
+    with open(result_loc, "rb") as f:
+        count_collection = pickle.load(f)
+    if not isinstance(count_collection, np.ndarray):
+        count_collection = np.asarray(count_collection)
+
+    cc_ignores = count_collection.copy()
+
+    cc_max_index = []
+
+    for index in ignore_index:
+      cc_ignores[:, index] = 0
+
+    for i in range(count_collection.shape[0]):
+        row_ignored = cc_ignores[i]
+        row_raw = count_collection[i]
+
+        if np.sum(row_ignored) > 0:
+            argmax = np.argmax(row_ignored)
+        else:
+            argmax = np.argmax(row_raw)
+
+        cc_max_index.append(argmax)
+
+    unique_classes = np.unique(cc_max_index)
+
+    index_container = []
+
+    for element in unique_classes:
+        indices_per_element = [index for index, entry in enumerate(cc_max_index) if entry == element]
+        index_container.append(indices_per_element)
+
+    return unique_classes, index_container
 
 def get_class_distribution(result_loc,
                      ignore_names=("Inside", "Outside"),
-                     use_tiebreak_noise=True,
+                     use_tiebreak_noise=False,
                      mark_empty_as_unknown=True):
     """
     - Loads count_collection from `result_loc` (pickle of [N, C] counts).
@@ -228,11 +312,23 @@ def get_class_distribution(result_loc,
 
 
 def main():
-    ds_path = r"W:\hpc_workloads\hpc_datasets\train_data\inside_outside_A_32_pd0_bw8_nk3_20250915-110203\inside_outside_A_32_pd0_bw8_nk3_20250915-110203_dataset.h5"
-    ds_cropped = r"W:\hpc_workloads\hpc_datasets\train_data\inside_outside_A_32_pd0_bw8_nk3_20250915-110203\inside_outside_A_32_pd0_bw8_nk3_20250915-110203_dataset_cropped.h5"
-    result_loc = r"W:\hpc_workloads\hpc_datasets\train_data\inside_outside_A_32_pd0_bw8_nk3_20250915-110203\result.bin"
-    # screen_hdf_dataset(ds_path, result_loc)
+
+    ds_path = r"H:\ws_abc_chunks\dataset\ABC_chunk_01_ks32swo4nbw8nk3_20250929-101945_dataset.h5"
+    ds_cropped = r"H:\ws_abc_chunks\dataset\ABC_chunk_01_ks32swo4nbw8nk3_20250929-101945_dataset_crp.h5"
+    result_loc = r"H:\ws_abc_chunks\dataset\result.bin"
+    result_loc_crp = r"H:\ws_abc_chunks\dataset\result_crp.bin"
+    n_samples = 20000
+
     get_class_distribution(result_loc)
+
+    # screen_hdf_dataset(ds_path, result_loc)
+    crop_hdf_by_class(ds_path, result_loc, ds_cropped, n_samples, [6,7])
+
+    screen_hdf_dataset(ds_cropped, result_loc_crp)
+    get_class_distribution(result_loc_crp)
+
+
+
 
 if __name__ == "__main__":
     main()

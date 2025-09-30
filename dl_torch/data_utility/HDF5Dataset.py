@@ -2,6 +2,7 @@ import os
 import numpy as np
 import h5py
 import torch
+from numpy.ma.core import shape
 from torch.utils.data import Dataset
 from typing import Optional, Tuple, Iterable
 from dl_torch.data_utility.InteractiveDataset import InteractiveDataset
@@ -52,6 +53,7 @@ class HDF5Dataset(Dataset):
 
         self.indices = self._choose_indices(total, fixed_length, crop_mode, random_seed)
         self.length = int(self.indices.size)
+        self.active_selection = self.indices
 
     def __len__(self) -> int:
         return self.length
@@ -126,6 +128,79 @@ class HDF5Dataset(Dataset):
 
             if save_source_indices:
                 dst.create_dataset("source_indices", data=sel, dtype="int64")
+
+
+    def export_active_selection(
+        self,
+        out_path: str,
+        *,
+        compression: Optional[str] = None,      # e.g. "lzf" (fast) or "gzip"
+        compression_opts: Optional[int] = None, # e.g. 1..9 for gzip level
+        save_source_indices: bool = True,
+        copy_root_attrs: bool = True,
+    ):
+        """
+        Exports the active selection (self.active) into a new HDF5.
+        Data is copied in contiguous runs for speed and low memory use.
+        """
+        sel = np.sort(self.active_selection.astype(np.int64))
+        if sel.size == 0:
+            raise ValueError("No samples selected; nothing to export.")
+
+        with h5py.File(self.hdf5_path, "r") as src, h5py.File(out_path, "w") as dst:
+            fx, fy = src["features"], src["labels"]
+            N = int(sel.size)
+
+            dset_x = dst.create_dataset(
+                "features",
+                shape=(N, *fx.shape[1:]),
+                dtype=fx.dtype,
+                compression=compression,
+                compression_opts=compression_opts,
+            )
+            dset_y = dst.create_dataset(
+                "labels",
+                shape=(N, *fy.shape[1:]),
+                dtype=fy.dtype,
+                compression=compression,
+                compression_opts=compression_opts,
+            )
+
+            if copy_root_attrs:
+                for k, v in src.attrs.items():
+                    dst.attrs[k] = v
+
+            write_off = 0
+            for s, e in self._runs_from_indices(sel):
+                blk = e - s
+                dset_x[write_off:write_off + blk] = fx[s:e]
+                dset_y[write_off:write_off + blk] = fy[s:e]
+                write_off += blk
+
+            if save_source_indices:
+                dst.create_dataset("source_indices", data=sel, dtype="int64")
+
+    def set_active_selection(self, selection: np.ndarray):
+        # check if valid
+        if not isinstance(selection, np.ndarray):
+            raise TypeError(
+                f"Invalid type {type(selection)}. Expected numpy.ndarray."
+            )
+
+        if selection.ndim != 1:
+            raise ValueError(
+                f"Invalid shape {selection.shape}. Expected 1D array (shape: (n,))."
+            )
+
+        max_index = self.__len__() - 1
+
+        for element in selection:
+            if element > max_index:
+                raise ValueError(
+                    f"Selection out if bounds. Element {element})."
+                )
+
+        self.active_selection = selection
 
     # ------------- conversion from shards -------------
 
@@ -372,9 +447,68 @@ class HDF5Dataset(Dataset):
                 for k, v in f.attrs.items():
                     print(f"    {k} = {v}")
 
+    @staticmethod
+    def join_hdf5_files(in_paths: list[str], out_path: str, *, compression=None, compression_opts=None):
+        """
+        Concatenate multiple HDF5 datasets into one.
+        Assumes each file has 'features' and 'labels' with the same per-sample shape.
+        """
+        if not in_paths:
+            raise ValueError("No input files provided.")
+
+        # Scan shapes
+        total = 0
+        feature_shape = None
+        label_shape = None
+        dtype_x = None
+        dtype_y = None
+        for p in in_paths:
+            with h5py.File(p, "r") as f:
+                fx, fy = f["features"], f["labels"]
+                if feature_shape is None:
+                    feature_shape = tuple(fx.shape[1:])
+                    label_shape = tuple(fy.shape[1:])
+                    dtype_x, dtype_y = fx.dtype, fy.dtype
+                else:
+                    assert fx.shape[1:] == feature_shape, f"Shape mismatch in {p}"
+                    assert fy.shape[1:] == label_shape, f"Label shape mismatch in {p}"
+                total += fx.shape[0]
+
+        # Create output
+        with h5py.File(out_path, "w") as dst:
+            dset_x = dst.create_dataset(
+                "features", shape=(total, *feature_shape), dtype=dtype_x,
+                compression=compression, compression_opts=compression_opts
+            )
+            dset_y = dst.create_dataset(
+                "labels", shape=(total, *label_shape), dtype=dtype_y,
+                compression=compression, compression_opts=compression_opts
+            )
+
+            # Copy data in blocks
+            write_off = 0
+            for p in in_paths:
+                with h5py.File(p, "r") as f:
+                    fx, fy = f["features"], f["labels"]
+                    n = fx.shape[0]
+                    dset_x[write_off:write_off + n] = fx[:]
+                    dset_y[write_off:write_off + n] = fy[:]
+                    write_off += n
+
 def main():
-    h5_dataset = r"H:\ABC\ABC_torch\ABC_training\train_250k_ks_16_pad_4_bw_5_vs_adaptive_n3\dataset.hdf5"
-    HDF5Dataset.print_file_info(h5_dataset)
+    h5_path = r"H:\ws_abc_chunks\testing\inside_outside_A_32_pd0_bw8_nk3_20250915-110203_dataset_cropped.h5"
+    h5_path_test = r"H:\ws_abc_chunks\testing\test.h5"
+    h5_path_joined = r"H:\ws_abc_chunks\testing\joined.h5"
+
+    HDF5Dataset.join_hdf5_files([h5_path, h5_path_test], h5_path_joined)
+    HDF5Dataset.print_file_info(h5_path)
+    HDF5Dataset.print_file_info(h5_path_test)
+    HDF5Dataset.print_file_info(h5_path_joined)
+
+
+
+
+
 
 if __name__ == "__main__":
     main()
