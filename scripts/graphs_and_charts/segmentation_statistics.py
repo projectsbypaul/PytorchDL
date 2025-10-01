@@ -335,7 +335,7 @@ def __histogramm_segmentation_samples(val_result_loc :  str):
     plt.show()
 
 def main():
-    stats_file = r"W:\hpc_workloads\hpc_val\SegDemo\SegDemoInOut_32_EP5_val_result_mcm.bin"
+    stats_file = r"H:\ws_hpc_workloads\hpc_val\SegDemo\SegDemoInOut_32_EP100_val_result_mcm.bin"
     template = color_templates.inside_outside_color_template_abc()
     __plot_confusion_matrix(stats_file, template)
 

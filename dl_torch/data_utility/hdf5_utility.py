@@ -313,15 +313,17 @@ def get_class_distribution(result_loc,
 
 def main():
 
-    ds_path = r"H:\ws_abc_chunks\dataset\ABC_chunk_01_ks32swo4nbw8nk3_20250929-101945_dataset.h5"
-    ds_cropped = r"H:\ws_abc_chunks\dataset\ABC_chunk_01_ks32swo4nbw8nk3_20250929-101945_dataset_crp.h5"
-    result_loc = r"H:\ws_abc_chunks\dataset\result.bin"
-    result_loc_crp = r"H:\ws_abc_chunks\dataset\result_crp.bin"
+    chunk = "04"
+
+    ds_path = r"H:\ws_abc_chunks\dataset\unpacked\ABC_chunk_04_ks32swo4nbw8nk3_20250929-183521_dataset.h5"
+    ds_cropped = rf"H:\ws_abc_chunks\dataset\cropped\ABC_chunk_{chunk}_ks32swo4nbw8nk3_crp_20k.h5"
+    result_loc = rf"H:\ws_abc_chunks\dataset\stats\result_chunk_{chunk}.bin"
+    result_loc_crp = rf"H:\ws_abc_chunks\dataset\stats\result_chunk{chunk}_crp.bin"
     n_samples = 20000
 
+    screen_hdf_dataset(ds_path, result_loc)
     get_class_distribution(result_loc)
 
-    # screen_hdf_dataset(ds_path, result_loc)
     crop_hdf_by_class(ds_path, result_loc, ds_cropped, n_samples, [6,7])
 
     screen_hdf_dataset(ds_cropped, result_loc_crp)

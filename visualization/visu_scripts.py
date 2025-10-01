@@ -802,8 +802,8 @@ def draw_voxel_slice_from_dir(
     plt.show()
 
 def main():
-    data_loc = r"W:\seg_debug\debug_output\00000002"
-    weights_loc = r"W:\hpc_workloads\hpc_models\SegDemoEdge_32\SegDemoEdge_32_save_95.pth"
+    data_loc = r"H:\ws_label_debug\target\REBeleg_Refined"
+    weights_loc = r"H:\ws_hpc_workloads\hpc_models\SegDemoEdge_32\SegDemoEdge_32_save_100.pth"
 
     visu_voxel_on_dir(data_loc, weights_loc, 32,  8, 9)
 
