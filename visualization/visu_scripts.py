@@ -256,19 +256,6 @@ def visu_histogram_segmentation_samples(val_result_loc :  str):
     plt.tight_layout()
     plt.show()
 
-import os
-import numpy as np
-import torch
-import pyvista as pv
-from matplotlib.colors import ListedColormap
-
-# Assumes these exist in your codebase:
-# - cppIOexcavator.load_segments_from_binary
-# - cppIOexcavator.parse_dat_file
-# - color_templates.edge_color_template_abc / get_class_list / get_color_dict / get_opacity_dict
-# - UNet_Hilbig
-
-
 
 def visu_voxel_on_dir(data_loc: str, weights_loc: str, kernel_size: int, padding: int, n_classes: int,
                       stride: int = 1, surface_only: bool = False):
@@ -390,6 +377,142 @@ def visu_voxel_on_dir(data_loc: str, weights_loc: str, kernel_size: int, padding
     # 5) Colors (per-voxel RGBA, uint8)
     # -----------------------------
     lut_rgba = np.zeros((len(class_list), 4), dtype=np.uint8)
+    for idx, name in enumerate(class_list):
+        r, g, b = custom_colors[name]
+        a = 0.0 if name in hidden else float(custom_opacity.get(name, 1.0))
+        lut_rgba[idx] = (r, g, b, int(round(a * 255)))
+
+    colors_rgba = lut_rgba[kept_labels]  # (K, 4) uint8
+
+    # -----------------------------
+    # 6) Glyph render (one actor)
+    # -----------------------------
+    points = coords.astype(np.float32)   # voxel centers at integer coords
+    cloud  = pv.PolyData(points)
+    cloud['rgba'] = colors_rgba
+
+    cube   = pv.Cube(center=(0, 0, 0), x_length=1.0, y_length=1.0, z_length=1.0)
+    glyphs = cloud.glyph(geom=cube, scale=False, orient=False)
+
+    print("PyVista version:", pv.__version__)
+    p = pv.Plotter()
+    p.add_mesh(
+        glyphs,
+        scalars='rgba',
+        rgba=True,
+        lighting=False,          # flat label colors
+        culling='back',          # reduce overdraw
+        show_edges=False,
+        render_lines_as_tubes=False,
+    )
+    p.enable_eye_dome_lighting()
+
+    # Legend for visible classes only
+    legend_entries = [[name, tuple(c/255 for c in custom_colors[name])]
+                      for name in class_list if name not in hidden]
+    if legend_entries:
+        p.add_legend(legend_entries, bcolor='white', face='circle',
+                     size=(0.2, 0.25), loc='lower right')
+
+    # Optional: interactive clip plane to peek inside solid regions
+    # p.add_mesh_clip_plane(glyphs)
+
+    p.show()
+
+def visu_cpp_label_on_dir(data_loc: str, kernel_size: int, padding: int,
+                      stride: int = 1, surface_only: bool = False):
+    # -----------------------------
+    # 1) Load segments + metadata
+    # -----------------------------
+    label_arrays = cppIOexcavator.load_labels_from_binary(
+        os.path.join(data_loc, "segmentation_data_labels.bin")
+    )
+    seg_info = cppIOexcavator.parse_dat_file(
+        os.path.join(data_loc, "segmentation_data.dat")
+    )
+
+    # 3) Assemble full label grid
+    origins = seg_info["ORIGIN_CONTAINER"]["data"]  # should be (N, 3)
+    origins_array = np.asarray(origins, dtype=np.int64)  # keep wide ints
+
+    bottom_coord = np.min(origins_array, axis=0)
+    top_inclusive = np.max(origins_array + int(kernel_size) - 1, axis=0)
+    top_exclusive = top_inclusive + 1
+    dim_vec = (top_exclusive - bottom_coord).astype(np.int64)
+
+    # Offsets per block
+    offsets = [(-bottom_coord + np.array(o, dtype=np.int64)) for o in origins_array]
+
+    # Keep labels as int32 (NOT uint8)
+    full_grid = np.full(tuple(dim_vec), fill_value=0, dtype=np.int32)  # placeholder; set after we know void_idx
+
+    # Colors etc.
+    color_temp = color_templates.inside_outside_color_template_abc()
+    class_list = color_templates.get_class_list(color_temp)
+    custom_colors = color_templates.get_color_dict(color_temp)
+    custom_opacity = color_templates.get_opacity_dict(color_temp)
+    void_idx = class_list.index('Outside')
+
+    # initialize with 'Outside'
+    full_grid.fill(void_idx)
+
+    print("assembling labels...")
+    ks = int(kernel_size)
+    pad_half = int(padding // 2)
+    x0, x1 = pad_half, ks - pad_half
+    if x1 <= x0:
+        print("Padding too large for kernel_size; nothing to paste.")
+        return
+
+    num_classes = len(class_list)
+
+    for g_index, off in enumerate(offsets):
+        block = label_arrays[g_index]  # dtype should be int32 from your loader
+        if block.ndim != 3 or block.shape != (ks, ks, ks):
+            print(f"Warning: block {g_index} has shape {block.shape}, expected ({ks},{ks},{ks})")
+        crop = block[x0:x1, x0:x1, x0:x1]  # remove padding border
+
+        # Validate label range BEFORE any casting
+        mn, mx = int(crop.min(initial=0)), int(crop.max(initial=0))
+        if mn < 0 or mx >= num_classes:
+            print(f"Warning: block {g_index} label ids out of range [0,{num_classes - 1}]: min={mn}, max={mx}")
+            # If you actually store class-IDs that must be remapped to indices, do it here (see below).
+
+        dx, dy, dz = crop.shape
+        ox, oy, oz = (int(off[0]) + x0, int(off[1]) + x0, int(off[2]) + x0)
+        full_grid[ox:ox + dx, oy:oy + dy, oz:oz + dz] = crop.astype(np.int32, copy=False)
+
+    # 4) Build draw set
+    labels = full_grid  # already int32; do NOT cast to uint8
+
+    hidden = {'Outside'}
+    visible_class_mask = np.array([name not in hidden for name in class_list], dtype=bool)
+
+    # This uses labels as indices to a mask of shape (C,)
+    keep = visible_class_mask[labels]  # shape == labels.shape, dtype bool
+
+    if not np.any(keep):
+        print("No voxels to render (all are hidden classes).")
+        return
+
+    if surface_only:
+        vm = keep
+        pad = np.pad(vm, 1, constant_values=False)
+        fully_surrounded = (
+                pad[2:, 1:-1, 1:-1] & pad[:-2, 1:-1, 1:-1] &
+                pad[1:-1, 2:, 1:-1] & pad[1:-1, :-2, 1:-1] &
+                pad[1:-1, 1:-1, 2:] & pad[1:-1, 1:-1, :-2]
+        )
+        keep = vm & ~fully_surrounded
+        if not np.any(keep):
+            print("No surface voxels remain after filtering.")
+            return
+
+    coords = np.argwhere(keep)
+    kept_labels = labels[keep]
+
+    # 5) Colors (uint8 only for the color buffer, not the label volume)
+    lut_rgba = np.zeros((num_classes, 4), dtype=np.uint8)
     for idx, name in enumerate(class_list):
         r, g, b = custom_colors[name]
         a = 0.0 if name in hidden else float(custom_opacity.get(name, 1.0))
@@ -802,10 +925,8 @@ def draw_voxel_slice_from_dir(
     plt.show()
 
 def main():
-    data_loc = r"H:\ws_label_debug\target\REBeleg_Refined"
-    weights_loc = r"H:\ws_hpc_workloads\hpc_models\SegDemoEdge_32\SegDemoEdge_32_save_100.pth"
-
-    visu_voxel_on_dir(data_loc, weights_loc, 32,  8, 9)
+    data_loc = r"H:\ws_label_test\label\00035328"
+    visu_cpp_label_on_dir(data_loc, 32,  4)
 
 if __name__=="__main__":
     main()

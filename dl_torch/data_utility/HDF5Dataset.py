@@ -462,7 +462,11 @@ class HDF5Dataset(Dataset):
         label_shape = None
         dtype_x = None
         dtype_y = None
+
+        print(f"Joining datasets into {os.path.split(out_path)[1]}")
+
         for p in in_paths:
+
             with h5py.File(p, "r") as f:
                 fx, fy = f["features"], f["labels"]
                 if feature_shape is None:
@@ -488,6 +492,7 @@ class HDF5Dataset(Dataset):
             # Copy data in blocks
             write_off = 0
             for p in in_paths:
+                print(f"Adding {os.path.split(p)[1]}")
                 with h5py.File(p, "r") as f:
                     fx, fy = f["features"], f["labels"]
                     n = fx.shape[0]
@@ -496,14 +501,12 @@ class HDF5Dataset(Dataset):
                     write_off += n
 
 def main():
-    h5_path = r"H:\ws_abc_chunks\testing\inside_outside_A_32_pd0_bw8_nk3_20250915-110203_dataset_cropped.h5"
-    h5_path_test = r"H:\ws_abc_chunks\testing\test.h5"
-    h5_path_joined = r"H:\ws_abc_chunks\testing\joined.h5"
+    target_dir = r"H:\ws_abc_chunks\dataset\cropped"
+    out_file  = r"H:\ws_abc_chunks\dataset\cropped\ABC_inside_outside_ks32swo4nbw8nk3_dataset.h5"
+    f_names = os.listdir(target_dir)
+    f_paths = [os.path.join(target_dir, f) for f in f_names]
 
-    HDF5Dataset.join_hdf5_files([h5_path, h5_path_test], h5_path_joined)
-    HDF5Dataset.print_file_info(h5_path)
-    HDF5Dataset.print_file_info(h5_path_test)
-    HDF5Dataset.print_file_info(h5_path_joined)
+    HDF5Dataset.join_hdf5_files(f_paths, out_file)
 
 
 

@@ -3,7 +3,7 @@ import numpy.typing as npt
 import struct
 import os
 import re  # reserved for future use
-from typing import List, Dict, Optional, Union, Tuple, TypedDict, cast, Any
+from typing import List, Dict, Optional, Union, Tuple, TypedDict, cast, Any, Iterable
 
 # --- Type Definitions ---
 
@@ -32,7 +32,22 @@ class DatFileData(TypedDict):
     dat_segment_count: Optional[int]  # These are not sections, keep as is
     dat_segment_binary_filename: Optional[str]  # These are not sections, keep as is
 
-SegmentElementType = Union[np.float32, np.float64]  # Type of elements in binary segments
+SegmentElementType = Union[np.float32, np.float64, np.int32]
+
+# central type-id → dtype map (little endian)
+_TYPE_ID_TO_DTYPE = {
+    0: np.dtype('<f4'),  # float32
+    1: np.dtype('<f8'),  # float64
+    2: np.dtype('<i4'),  # int32
+}
+
+# Map numpy dtype -> element_type_id in your C++ format
+_DTYPE_TO_TYPE_ID = {
+    np.dtype(np.float32): 0,
+    np.dtype(np.float64): 1,
+    np.dtype(np.int32):   2,
+}
+
 Segment = npt.NDArray[SegmentElementType]
 
 class FullSegmentationData(TypedDict):
@@ -265,233 +280,272 @@ def parse_dat_file(dat_filepath: str) -> Optional[DatFileData]:
 
     return final_dat_data
 
+# ---------- Generic core reader + typed wrappers ----------
 
-def load_segments_from_binary(
+def _load_arrays_from_binary(
     bin_filepath: str,
-    expected_segment_count_from_dat: Optional[int] = None
+    expected_segment_count_from_dat: Optional[int] = None,
+    allowed_type_ids: Optional[Iterable[int]] = None,
 ) -> Optional[List[Segment]]:
     """
-    Loads segments from the specified binary file.
-    Returns a list of NumPy arrays (segments), or None if loading fails.
+    Generic reader for your .bin format:
+      <uint32 magic=0x5345474D, uint16 version=1, uint8 type_id, uint32 num_segments>
+      num_segments * <uint32 d0,d1,d2>
+      then payloads (row-major) per segment
+    If allowed_type_ids is given, enforce element_type_id ∈ allowed_type_ids.
     """
     segments_list: List[Segment] = []
     if not os.path.exists(bin_filepath):
-        print(f"Error: Binary segment file not found: {bin_filepath}")
+        print(f"Error: Binary file not found: {bin_filepath}")
         return None
 
     try:
         with open(bin_filepath, 'rb') as bf:
-            header_format: str = '<IHBI'
-            header_size: int = struct.calcsize(header_format)
-            header_bytes: bytes = bf.read(header_size)
-            if len(header_bytes) < header_size:
-                raise IOError(f"Binary file {bin_filepath} is too short to contain a valid header.")
+            header_format = '<IHBI'
+            header_size = struct.calcsize(header_format)
+            header = bf.read(header_size)
+            if len(header) < header_size:
+                raise IOError(f"{bin_filepath} too short for header")
+            magic, version, type_id, num_segments = struct.unpack(header_format, header)
 
-            magic_number, format_version, element_type_id, bin_num_segments = struct.unpack(header_format, header_bytes)
+            if magic != 0x5345474D:
+                raise ValueError(f"Bad magic: {magic:#x}")
+            if version != 1:
+                raise ValueError(f"Unsupported version: {version}")
 
-            expected_magic: int = 0x5345474D
-            if magic_number != expected_magic:
-                raise ValueError(f"Invalid magic number. Expected {expected_magic:#x}, got {magic_number:#x}")
+            if expected_segment_count_from_dat is not None and expected_segment_count_from_dat != num_segments:
+                print(f"Warning: .dat count {expected_segment_count_from_dat} != .bin count {num_segments}. Using .bin.")
 
-            if expected_segment_count_from_dat is not None and expected_segment_count_from_dat != bin_num_segments:
-                print(
-                    f"Warning: Segment count mismatch! .dat: {expected_segment_count_from_dat}, "
-                    f".bin: {bin_num_segments}. Using .bin count."
-                )
+            if allowed_type_ids is not None and type_id not in set(allowed_type_ids):
+                raise ValueError(f"Unexpected element_type_id {type_id}; allowed {sorted(set(allowed_type_ids))}")
 
-            if bin_num_segments == 0:
-                print("Info: Binary file header indicates 0 segments.")
-                return []
+            if type_id not in _TYPE_ID_TO_DTYPE:
+                raise ValueError(f"Unknown element_type_id: {type_id}")
 
-            # Decide element dtype
-            if element_type_id == 0:
-                np_dtype_val: Union[np.dtype[np.float32], np.dtype[np.float64]] = np.dtype(np.float32)
-            elif element_type_id == 1:
-                np_dtype_val = np.dtype(np.float64)
-            else:
-                raise ValueError(f"Unknown element_type_id: {element_type_id}")
+            np_dtype = _TYPE_ID_TO_DTYPE[type_id]
 
-            # Read descriptors
-            segment_dims_list: List[Tuple[int, int, int]] = []
-            descriptor_format: str = '<III'
-            descriptor_size: int = struct.calcsize(descriptor_format)
-            for i in range(bin_num_segments):
-                descriptor_bytes = bf.read(descriptor_size)
-                if len(descriptor_bytes) < descriptor_size:
-                    raise IOError(
-                        f"Binary file ended prematurely reading descriptor for segment {i + 1}/{bin_num_segments}."
-                    )
-                dims = cast(Tuple[int, int, int], struct.unpack(descriptor_format, descriptor_bytes))
-                segment_dims_list.append(dims)
+            # read descriptors
+            desc_fmt = '<III'
+            desc_sz = struct.calcsize(desc_fmt)
+            dims_list: List[Tuple[int, int, int]] = []
+            for i in range(num_segments):
+                desc = bf.read(desc_sz)
+                if len(desc) < desc_sz:
+                    raise IOError(f"EOF reading descriptor {i}/{num_segments}")
+                dims_list.append(cast(Tuple[int,int,int], struct.unpack(desc_fmt, desc)))
 
-            # Read data
-            for i in range(bin_num_segments):
-                dims = segment_dims_list[i]
-                num_elements: int = int(np.prod(dims))
+            # read payloads
+            for i, dims in enumerate(dims_list):
+                d0, d1, d2 = dims
+                num_elems = int(np.prod(dims))
+                if num_elems == 0:
+                    segments_list.append(np.empty((d0, d1, d2), dtype=np_dtype))
+                    continue
 
-                if num_elements == 0:
-                    current_segment: Segment = np.array([], dtype=np_dtype_val).reshape(dims)
-                else:
-                    bytes_to_read: int = num_elements * np_dtype_val.itemsize
-                    segment_data_flat_bytes = bf.read(bytes_to_read)
-                    if len(segment_data_flat_bytes) < bytes_to_read:
-                        raise IOError(
-                            f"Segment {i}: Expected {bytes_to_read} bytes, read {len(segment_data_flat_bytes)}."
-                        )
+                nbytes = num_elems * np_dtype.itemsize
+                buf = bf.read(nbytes)
+                if len(buf) < nbytes:
+                    raise IOError(f"Segment {i}: expected {nbytes} bytes, got {len(buf)}")
 
-                    segment_data_flat = np.frombuffer(segment_data_flat_bytes, dtype=np_dtype_val, count=num_elements)
+                flat = np.frombuffer(buf, dtype=np_dtype, count=num_elems)
+                if flat.size != num_elems:
+                    raise IOError(f"Segment {i}: expected {num_elems} elems, got {flat.size}")
+                segments_list.append(flat.reshape((d0, d1, d2)))
 
-                    if segment_data_flat.size != num_elements:
-                        raise IOError(
-                            f"Segment {i}: After frombuffer, expected {num_elements} elements, "
-                            f"got {segment_data_flat.size}"
-                        )
-                    try:
-                        current_segment = segment_data_flat.reshape(dims)
-                    except ValueError as reshape_error:
-                        print(
-                            f"Error reshaping segment {i}: {reshape_error}. Dims: {dims}, "
-                            f"Elements: {segment_data_flat.size}"
-                        )
-                        return None
-                segments_list.append(current_segment)
     except Exception as e:
-        print(f"Error processing binary segment file {bin_filepath}: {e}")
+        print(f"Error processing {bin_filepath}: {e}")
         import traceback; traceback.print_exc()
         return None
 
     return segments_list
 
+def load_segments_from_binary(
+    bin_filepath: str,
+    expected_segment_count_from_dat: Optional[int] = None
+) -> Optional[List[Segment]]:
+    # segments may be float32 (0) or float64 (1)
+    return _load_arrays_from_binary(
+        bin_filepath,
+        expected_segment_count_from_dat=expected_segment_count_from_dat,
+        allowed_type_ids=(0, 1),
+    )
 
-def save_segments_to_binary(bin_filepath, segments, dtype=np.float32, format_version=1):
+def load_labels_from_binary(
+    bin_filepath: str,
+    expected_segment_count_from_dat: Optional[int] = None
+) -> Optional[List[Segment]]:
+    # labels are int32 (2)
+    return _load_arrays_from_binary(
+        bin_filepath,
+        expected_segment_count_from_dat=expected_segment_count_from_dat,
+        allowed_type_ids=(2,),
+    )
+
+def load_predictions_from_binary(
+    bin_filepath: str,
+    expected_segment_count_from_dat: Optional[int] = None
+) -> Optional[List[Segment]]:
+    # predictions are int32 (2)
+    return _load_arrays_from_binary(
+        bin_filepath,
+        expected_segment_count_from_dat=expected_segment_count_from_dat,
+        allowed_type_ids=(2,),
+    )
+
+def _resolve_dtype(dtype: Union[np.dtype, type, str]) -> np.dtype:
+    dt = np.dtype(dtype)
+    # Force little-endian to match the on-disk format
+    if dt.byteorder not in ('<', '=', '|'):  # '=' is native-endian: on little-endian machines it's fine
+        dt = dt.newbyteorder('<')
+    if dt.kind in ('f', 'i'):
+        # normalize sizes (e.g., float64 vs '<f8')
+        dt = np.dtype(dt.str.replace('=', '<'))  # ensure '<'
+    return dt
+
+# ---------- Generic core writer + typed wrappers ----------
+
+def _common_float_dtype(arrays: Iterable[np.ndarray]) -> np.dtype:
     """
-    Save a list of 3D numpy arrays as a binary segment file compatible with load_segments_from_binary.
+    Infer a common *float* dtype across arrays.
+    Returns <f8 if any float64 present, else <f4 if any float32 present.
+    Errors on non-float or empty input.
     """
-    # Sanity check all segments
-    for seg in segments:
-        assert isinstance(seg, np.ndarray), "All segments must be numpy arrays"
-        assert seg.ndim == 3, "Each segment must be 3D"
-        assert seg.dtype == dtype, f"All segments must have dtype {dtype}"
-
-    magic_number = 0x5345474D
-    element_type_id = 0 if dtype == np.float32 else 1  # match loader
-    num_segments = len(segments)
-
-    with open(bin_filepath, 'wb') as bf:
-        # Write header
-        header = struct.pack('<IHBI', magic_number, format_version, element_type_id, num_segments)
-        bf.write(header)
-
-        # Write segment descriptors
-        for seg in segments:
-            dims = seg.shape
-            bf.write(struct.pack('<III', dims[0], dims[1], dims[2]))
-
-        # Write segment data
-        for seg in segments:
-            bf.write(seg.tobytes(order='C'))
-
-
-def load_full_segmentation_data(dat_filepath: str) -> Optional[FullSegmentationData]:
-    """
-    Orchestrates parsing of the .dat file and then the associated .bin segment file.
-    Returns a single dictionary adhering to FullSegmentationData, or None on critical failure.
-    """
-    base_dir: str = os.path.dirname(os.path.abspath(dat_filepath))
-
-    dat_info: Optional[DatFileData] = parse_dat_file(dat_filepath)
-    if dat_info is None:
-        print(f"Critical error: Failed to parse .dat file: {dat_filepath}")
-        return None
-
-    # Build the full data structure with defaults
-    full_data: FullSegmentationData = {
-        'SCALARS': dat_info.get('SCALARS', {}),
-        'ORIGIN_CONTAINER': dat_info.get(
-            'ORIGIN_CONTAINER', cast(MatrixContainer, {'data': np.array([]), 'rows': 0, 'cols': 0})
-        ),
-        'FACE_TO_GRID_INDEX_CONTAINER': dat_info.get(
-            'FACE_TO_GRID_INDEX_CONTAINER', cast(MatrixContainer, {'data': np.array([]), 'rows': 0, 'cols': 0})
-        ),
-        'VERT_TO_GRID_INDEX_CONTAINER': dat_info.get(
-            'VERT_TO_GRID_INDEX_CONTAINER', cast(MatrixContainer, {'data': np.array([]), 'rows': 0, 'cols': 0})
-        ),
-        'FACE_TYPE_MAP': dat_info.get('FACE_TYPE_MAP', {}),
-        'TYPE_COUNT_MAP': dat_info.get('TYPE_COUNT_MAP', {}),
-        'VERT_TYPE_MAP': dat_info.get('VERT_TYPE_MAP', {}),
-        'dat_segment_count': dat_info.get('dat_segment_count'),
-        'dat_segment_binary_filename': dat_info.get('dat_segment_binary_filename'),
-        'segment_container': [],  # Initialize segment_container
-    }
-
-    dat_segment_count: Optional[int] = dat_info.get('dat_segment_count')
-    relative_bin_filename: Optional[str] = dat_info.get('dat_segment_binary_filename')
-
-    if dat_segment_count is not None and dat_segment_count > 0:
-        if relative_bin_filename:
-            bin_filepath: str = os.path.join(base_dir, relative_bin_filename)
-            print(f"Attempting to load segments from: {bin_filepath}")
-            segments: Optional[List[Segment]] = load_segments_from_binary(bin_filepath, dat_segment_count)
-            if segments is not None:
-                full_data['segment_container'] = segments
-            else:
-                print(f"Warning: Failed to load segments from {bin_filepath}. Segment container remains empty.")
+    has_f8 = False
+    has_f4 = False
+    seen_any = False
+    for a in arrays:
+        if not isinstance(a, np.ndarray):
+            raise TypeError("Inputs must be numpy arrays.")
+        if a.ndim != 3:
+            raise ValueError(f"All arrays must be 3D; got {a.shape}.")
+        seen_any = True
+        k = np.dtype(a.dtype).kind
+        sz = np.dtype(a.dtype).itemsize
+        if k != 'f':
+            raise ValueError(f"Found non-float dtype {a.dtype} in segments; "
+                             "segments must be float arrays.")
+        if sz == 8:
+            has_f8 = True
+        elif sz == 4:
+            has_f4 = True
         else:
-            print(
-                f"Warning: Segment count ({dat_segment_count}) > 0 in .dat, "
-                f"but binary filename missing. Segments not loaded."
-            )
-    elif dat_segment_count == 0:
-        print("Info: .dat file indicates 0 segments. Segment container is empty.")
-    else:  # dat_segment_count is None
-        print("Info: Segment count not specified or invalid in .dat. Segments not loaded from binary.")
+            raise ValueError(f"Unsupported float dtype {a.dtype}; use float32/float64.")
+    if not seen_any:
+        # default to float32 for an empty set, still write a valid file
+        return np.dtype('<f4')
+    return np.dtype('<f8') if has_f8 else np.dtype('<f4')
 
-    return full_data
+
+def _save_arrays_to_binary(
+    bin_filepath: str,
+    arrays: Iterable[np.ndarray],
+    dtype: Union[np.dtype, type, str],
+    format_version: int = 1,
+) -> None:
+    """
+    Core binary writer compatible with your C++ loader.
+
+    - All arrays must be 3D.
+    - `dtype` controls on-disk element_type_id (float32/float64/int32 only).
+    - Arrays are cast to `dtype`, made C-contiguous & little-endian before writing.
+    """
+    arr_list: List[np.ndarray] = list(arrays)
+    target_dtype = _resolve_dtype(dtype)  # uses your existing helper
+
+    # Normalize to canonical LE dtype keys
+    normalized_key = np.dtype(target_dtype).newbyteorder('<')
+    if normalized_key not in _DTYPE_TO_TYPE_ID:
+        raise ValueError("Unsupported dtype. Allowed: float32, float64, int32.")
+
+    element_type_id = _DTYPE_TO_TYPE_ID[normalized_key]
+
+    # Prepare shapes and contiguous buffers
+    shapes: List[Tuple[int, int, int]] = []
+    contiguous: List[np.ndarray] = []
+    for idx, arr in enumerate(arr_list):
+        if not isinstance(arr, np.ndarray):
+            raise TypeError(f"Array {idx} is not a numpy array.")
+        if arr.ndim != 3:
+            raise ValueError(f"Array {idx} must be 3D; got {arr.shape}.")
+        # cast to target dtype and ensure C-contiguous, little-endian
+        ac = np.ascontiguousarray(arr.astype(target_dtype, copy=False))
+        if ac.dtype.byteorder not in ('<', '|'):
+            ac = ac.byteswap().newbyteorder('<')
+        d0, d1, d2 = map(int, ac.shape)
+        for d, name in zip((d0, d1, d2), ('d0', 'd1', 'd2')):
+            if d < 0 or d > 0xFFFFFFFF:
+                raise ValueError(f"Array {idx} dimension {name}={d} out of uint32 range.")
+        shapes.append((d0, d1, d2))
+        contiguous.append(ac)
+
+    # Write file
+    with open(bin_filepath, 'wb') as bf:
+        magic = 0x5345474D  # 'SEGM'
+        num_segments = len(arr_list)
+        bf.write(struct.pack('<IHBI', magic, format_version, element_type_id, num_segments))
+        for d0, d1, d2 in shapes:
+            bf.write(struct.pack('<III', d0, d1, d2))
+        for ac in contiguous:
+            if 0 in ac.shape:
+                continue
+            bf.write(ac.tobytes(order='C'))
+
+
+def save_segments(
+    bin_filepath: str,
+    segments: Iterable[np.ndarray],
+    dtype: Union[np.dtype, type, str, None] = None,
+    format_version: int = 1,
+) -> None:
+    """
+    Segments → float arrays. If dtype is None, infer a common float dtype across inputs:
+      - float64 if any array is float64, else float32.
+    """
+    seg_list = list(segments)
+    if dtype is None:
+        inferred = _common_float_dtype(seg_list)
+        _save_arrays_to_binary(bin_filepath, seg_list, inferred, format_version=format_version)
+    else:
+        # Enforce the provided dtype is float
+        dt = np.dtype(dtype)
+        if dt.kind != 'f' or dt.itemsize not in (4, 8):
+            raise ValueError("save_segments dtype must be float32 or float64.")
+        _save_arrays_to_binary(bin_filepath, seg_list, dt, format_version=format_version)
+
+
+def save_labels(
+    bin_filepath: str,
+    labels: Iterable[np.ndarray],
+    format_version: int = 1,
+) -> None:
+    """
+    Labels → int arrays (int32 on disk).
+    Non-int inputs will be safely cast to int32.
+    """
+    _save_arrays_to_binary(bin_filepath, list(labels), np.int32, format_version=format_version)
+
+
+def save_predictions(
+    bin_filepath: str,
+    predictions: Iterable[np.ndarray],
+    format_version: int = 1,
+) -> None:
+    """
+    Predictions → int arrays (int32 on disk).
+    """
+    _save_arrays_to_binary(bin_filepath, list(predictions), np.int32, format_version=format_version)
+
 
 
 def main():
-    # Example usage: replace with your actual .dat file path
-    dat_file_to_test = r'C:\Local_Data\ABC\ABC_statistics\benchmarks\ABC_chunk_benchmark\00000002\segmentation_data.dat'
+    labels = load_labels_from_binary(r"H:\ws_seg_debug\debug_output\00000004\segmentation_data_labels.bin")
+    segments = load_segments_from_binary(r"H:\ws_seg_debug\debug_output\00000004\segmentation_data_segments.bin")
 
-    if os.path.exists(dat_file_to_test):
-        print(f"\n--- Parsing actual file: {dat_file_to_test} ---")
-        all_data = load_full_segmentation_data(dat_file_to_test)
 
-        if all_data:
-            print("\n--- Parsed Data from Actual File ---")
-            if all_data.get('SCALARS'):
-                print("Scalars:", all_data['SCALARS'])
-
-            origin_cont = all_data.get('ORIGIN_CONTAINER')
-            if origin_cont and isinstance(origin_cont.get('data'), np.ndarray):
-                print(
-                    f"Origin Container (rows {origin_cont.get('rows', 0)}, cols {origin_cont.get('cols', 0)}), "
-                    f"shape {origin_cont['data'].shape}"
-                )
-
-            # Show shapes for all matrix sections
-            for sec in MATRIX_SECTIONS:
-                mc = all_data.get(sec)  # type: ignore[index]
-                if mc and isinstance(mc.get('data'), np.ndarray):
-                    print(f"{sec}: rows={mc.get('rows', 0)}, cols={mc.get('cols', 0)}, shape={mc['data'].shape}")
-
-            segments = all_data.get('segment_container', [])
-            if segments:
-                print(f"\nSegments Loaded: {len(segments)}")
-                for i, seg_array in enumerate(segments):
-                    if seg_array is not None:
-                        print(f"  Segment {i} shape: {seg_array.shape}, dtype: {seg_array.dtype}")
-            else:
-                print("\nNo segments loaded or segment_container is empty.")
-        else:
-            print("\nFull parsing of actual file failed.")
-    else:
-        print(f"Test .dat file not found: {dat_file_to_test}. Skipping actual file test.")
     print()
 
 
+
 if __name__ == '__main__':
-    data = parse_dat_file(r"H:\ABC\ABC_Benchmark\Outputs_Benchmark\00000024\segmentation_data.dat")
-    vtp_map = data['VERT_TYPE_MAP']
-    vt_grid = data['VERT_TO_GRID_INDEX_CONTAINER']
+
     main()
