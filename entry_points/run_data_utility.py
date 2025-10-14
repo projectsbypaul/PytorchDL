@@ -27,6 +27,14 @@ class RunABCHelperFunctions:
     def run_crop_hdf5_dataset(target : str, n_samples):
         hdf5_utility.crop_hdf_dataset(target, n_samples)
 
+    @staticmethod
+    def run_convert_bin_tree_to_hdf5(root: str, out_hdf5: str):
+        HDF5Dataset.convert_bin_tree_to_hdf5(root, out_hdf5)
+
+    @staticmethod
+    def run_join_hdf5_files(h5_in_a : str, h5_in_b : str, h5_out_ab: str):
+        HDF5Dataset.join_hdf5_files([h5_in_a, h5_in_b], h5_out_ab)
+
 def main():
     pass
 

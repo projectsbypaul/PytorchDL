@@ -16,9 +16,6 @@ def data_to_hdf5(data_loc : str):
 
     with h5py.File(os.path.join(data_loc,"file.h5"), 'w') as f:
         samples = f.create_group('samples')
-
-
-
  #   print()
 
 def main():

@@ -28,6 +28,8 @@ def main():
             'batch_subsets',
             'torch_to_hdf5',
             'crop_hdf5',
+            'tree_to_hdf5',
+            'join_hdf5',
             'help',
         ],
     )
@@ -120,6 +122,8 @@ def main():
             )
             print("main.py data_utility torch_to_hdf5 <torch_dir> <out_file>")
             print("main.py data_utility crop_hdf5 <target> <n_samples>")
+            print("main.py data_utility tree_to_hdf5 <root> <h5_out>")
+            print("main.py data_utility join_hdf5 <h5_in_a> <h5_in_b> <h5_out_ab>")
             sys.exit(0)
 
         elif args.mode == 'create_subsets':
@@ -198,6 +202,29 @@ def main():
                 sys.exit(1)
 
             RunABCHelperFunctions.run_crop_hdf5_dataset(target, n_samples)
+
+        elif args.mode == 'tree_to_hdf5':
+            try:
+                root: str = args.arg0
+                out_hdf5: str = args.arg1
+            except (TypeError, ValueError):
+                print("[ERROR] Invalid or missing arguments for 'tree_to_hdf5'.")
+                p_data_utility.print_help()
+                sys.exit(1)
+
+            RunABCHelperFunctions.run_convert_bin_tree_to_hdf5(root, out_hdf5)
+
+        elif args.mode == 'join_hdf5':
+            try:
+                h5_a: str = args.arg0
+                h5_b: str = args.arg1
+                h5_ab: str = args.arg2
+            except (TypeError, ValueError):
+                print("[ERROR] Invalid or missing arguments for 'join_hdf5'.")
+                p_data_utility.print_help()
+                sys.exit(1)
+
+            RunABCHelperFunctions.run_join_hdf5_files(h5_a, h5_b, h5_ab)
 
         else:
             print("[ERROR] Invalid mode for data_utility.")

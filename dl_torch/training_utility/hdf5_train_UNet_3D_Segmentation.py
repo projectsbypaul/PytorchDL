@@ -459,16 +459,16 @@ def main():
     print("PyTorch:", torch.__version__)
     print("Python :", platform.python_version())
 
-    hdf5_path = r"H:\ABC\ABC_torch\ABC_training\train_250k_ks_16_pad_4_bw_5_vs_adaptive_n3\dataset.hdf5"
+    hdf5_path = r"H:\ws_abc_chunks\source\ABC_chunk_01_ks32swo4nbw8nk3_20250929-101945\chunk01_label_test.h5"
     model_weights_loc = r"H:\ABC\ABC_torch\temp_models/{model_name}/{run_name}_save_{epoch}.pth"
 
     # Set to 0 or None for nondeterministic behavior; >0 for deterministic split/shuffle + init.
     model_seed = 1337  # try 0 to disable determinism
 
-    model_name = "UNet_Restart"
+    model_name = "UNet_Test"
 
     # Example: resume from a specific epoch if its checkpoint/weights exist
-    resume_from = 3  # or None to start from scratch
+    resume_from = 0  # or None to start from scratch
 
 
     train_model_hdf5(

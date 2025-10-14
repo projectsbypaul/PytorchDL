@@ -306,19 +306,15 @@ def get_class_distribution(result_loc,
     # optional: return predictions if you need them downstream
     return pred_global.numpy()
 
-# ---- example usage ----
-# preds = balance_data_set("/path/to/count_collection.pkl")
-
-
 
 def main():
 
 
 
-    ds_path = r"H:\ws_abc_chunks\dataset\cropped\ABC_inside_outside_ks32swo4nbw8nk3_dataset.h5"
-    result_loc =r"H:\ws_abc_chunks\dataset\stats\result_ABC_inside_outside.bin"
+    ds_path = r"H:\ws_abc_chunks\source\ABC_chunk_01_ks32swo4nbw8nk3_20250929-101945\chunk01.h5"
+    result_loc =r"H:\ws_abc_chunks\source\ABC_chunk_01_ks32swo4nbw8nk3_20250929-101945\chunk01_result.bin"
 
-    # screen_hdf_dataset(ds_path, result_loc)
+    screen_hdf_dataset(ds_path, result_loc)
     get_class_distribution(result_loc)
 
 

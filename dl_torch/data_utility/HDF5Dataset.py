@@ -4,8 +4,9 @@ import h5py
 import torch
 from numpy.ma.core import shape
 from torch.utils.data import Dataset
-from typing import Optional, Tuple, Iterable
+from typing import Optional, Tuple, Iterable, Callable, Literal
 from dl_torch.data_utility.InteractiveDataset import InteractiveDataset
+from utility.data_exchange import cppIOexcavator
 
 
 class HDF5Dataset(Dataset):
@@ -324,6 +325,191 @@ class HDF5Dataset(Dataset):
 
             assert write_offset == keep_count, f"Write mismatch: wrote {write_offset}, expected {keep_count}"
 
+    # ------------- create from bin tree -------------
+    @staticmethod
+    def __list_label_and_segment_files(
+            root: str,
+            segment_signature="segmentation_data_segments.bin",
+            label_signature="segmentation_data_labels.bin"):
+
+        subdir_names = os.listdir(root)
+        subdir_paths = [os.path.join(root, p) for p in subdir_names]
+
+        data_files = []
+        label_files = []
+
+        for i, p in enumerate(subdir_paths):
+
+            data_f_path = os.path.join(p, segment_signature)
+            label_f_path = os.path.join(p, label_signature)
+
+            data_exist = os.path.exists(data_f_path)
+            label_exist = os.path.exists(label_f_path)
+
+            if not data_exist or not label_exist:
+                print(f"Subdir {subdir_names[i]}: binary file for segments or labels missing -> skipping")
+                continue
+
+            data_files.append(data_f_path)
+            label_files.append(label_f_path)
+
+        return data_files, label_files
+
+
+    @staticmethod
+    def convert_bin_tree_to_hdf5(
+            root: str,
+            out_hdf5: str,
+            segment_signature: str = "segmentation_data_segments.bin",
+            label_signature: str = "segmentation_data_labels.bin",
+            *,
+            compression: Optional[str] = None,  # e.g. "lzf" or "gzip"
+            compression_opts: Optional[int] = None,  # gzip level 1..9
+            one_pair_per_dir: bool = True,
+            progress: Optional[Callable[[int, int, str], None]] = None,
+            # NEW controls:
+            add_channel_axis: bool = True,
+            channel_position: Literal["first", "last"] = "first",
+            feature_dtype: str = "float32",
+            label_dtype: str = "float32",
+    ):
+        """
+        Writes:
+          /features: (TOTAL, C?, 32,32,32) if add_channel_axis else (TOTAL, 32,32,32)
+          /labels  : (TOTAL, 32,32,32)
+
+        - Forces dtypes to feature_dtype / label_dtype.
+        - If add_channel_axis=True and channel_position='first', features become (N,1,D,H,W).
+        """
+        # --------- discover files ----------
+        seg_paths, lab_paths = HDF5Dataset.__list_label_and_segment_files(
+            root, segment_signature, label_signature
+        )
+        if not seg_paths:
+            raise RuntimeError(f"No matching .bin pairs found under {root}")
+        if len(seg_paths) != len(lab_paths):
+            raise RuntimeError(f"Mismatched file counts: segments={len(seg_paths)} labels={len(lab_paths)}")
+
+        # --------- pass 1: scan ----------
+        file_counts: list[int] = []
+        total_samples = 0
+        base_feat_shape: Optional[Tuple[int, ...]] = None  # shape WITHOUT channel axis
+        label_shape: Optional[Tuple[int, ...]] = None
+
+        for sp, lp in zip(seg_paths, lab_paths):
+            seg_arr = np.asarray(cppIOexcavator.load_segments_from_binary(sp))  # (Ni, *feat)
+            lab_arr = np.asarray(cppIOexcavator.load_labels_from_binary(lp))  # (Ni, *lab)
+
+            parent_name = os.path.basename(os.path.dirname(sp))
+            print(f"[INFO] scanning {parent_name} for shape/size")
+
+            if seg_arr.shape[0] != lab_arr.shape[0]:
+                raise ValueError(f"Count mismatch:\n  {sp}\n  {lp}\n  {seg_arr.shape[0]} vs {lab_arr.shape[0]}")
+
+            Ni = int(seg_arr.shape[0])
+            file_counts.append(Ni)
+            total_samples += Ni
+
+            if Ni == 0:
+                continue
+
+            cur_feat_shape = tuple(seg_arr.shape[1:])  # (D,H,W) currently
+            cur_lab_shape = tuple(lab_arr.shape[1:])  # (D,H,W)
+
+            if base_feat_shape is None:
+                base_feat_shape = cur_feat_shape
+                label_shape = cur_lab_shape
+            else:
+                if cur_feat_shape != base_feat_shape:
+                    raise ValueError(
+                        f"Inconsistent feature shapes: expected {base_feat_shape}, got {cur_feat_shape} in {sp}")
+                if cur_lab_shape != label_shape:
+                    raise ValueError(f"Inconsistent label shapes: expected {label_shape}, got {cur_lab_shape} in {lp}")
+
+        if base_feat_shape is None or label_shape is None or total_samples == 0:
+            raise RuntimeError("No samples found across the discovered .bin pairs.")
+
+        # compute final feature shape (per-sample, WITHOUT batch)
+        if add_channel_axis:
+            if channel_position == "first":
+                final_feat_shape = (1, *base_feat_shape)  # (C=1,D,H,W)
+            else:
+                final_feat_shape = (*base_feat_shape, 1)  # (D,H,W,C=1)
+        else:
+            final_feat_shape = base_feat_shape  # (D,H,W)
+
+        # --------- pass 2: write ----------
+        with h5py.File(out_hdf5, "w") as f:
+            dset_x = f.create_dataset(
+                "features",
+                shape=(total_samples, *final_feat_shape),
+                dtype=feature_dtype,
+                compression=compression,
+                compression_opts=compression_opts,
+            )
+            dset_y = f.create_dataset(
+                "labels",
+                shape=(total_samples, *label_shape),
+                dtype=label_dtype,
+                compression=compression,
+                compression_opts=compression_opts,
+            )
+
+            write_offset = 0
+            written = 0
+
+            for (sp, lp), Ni in zip(zip(seg_paths, lab_paths), file_counts):
+                parent = os.path.dirname(sp)
+                parent_name = os.path.basename(parent)
+
+                if Ni == 0:
+                    if progress is not None:
+                        progress(written, total_samples, parent)
+                    continue
+
+                seg_arr = np.asarray(cppIOexcavator.load_segments_from_binary(sp))  # (Ni, D,H,W)
+                lab_arr = np.asarray(cppIOexcavator.load_labels_from_binary(lp))  # (Ni, D,H,W)
+
+                # transform features: cast + add channel axis
+                x = seg_arr.astype(feature_dtype, copy=False)
+                if add_channel_axis:
+                    if channel_position == "first":
+                        if x.ndim != 4:  # (N,D,H,W)
+                            raise RuntimeError(f"Unexpected feature ndim={x.ndim} in {sp}, expected 4")
+                        x = x[:, None, ...]  # -> (N,1,D,H,W)
+                    else:
+                        x = x[..., None]  # -> (N,D,H,W,1)
+
+                # transform labels: cast only
+                y = lab_arr.astype(label_dtype, copy=False)
+
+                # sanity
+                if x.shape[0] != Ni or y.shape[0] != Ni:
+                    raise RuntimeError(f"File changed between passes or load error in:\n  {sp}\n  {lp}")
+                if tuple(x.shape[1:]) != final_feat_shape:
+                    raise RuntimeError(
+                        f"Feature shape drift: expected {final_feat_shape}, got {tuple(x.shape[1:])} in {sp}")
+                if tuple(y.shape[1:]) != label_shape:
+                    raise RuntimeError(f"Label shape drift: expected {label_shape}, got {tuple(y.shape[1:])} in {lp}")
+
+                # write block
+                dset_x[write_offset:write_offset + Ni] = x
+                dset_y[write_offset:write_offset + Ni] = y
+                write_offset += Ni
+                written += Ni
+
+                print(f"[INFO] writing from {parent_name} ({Ni} samples) -> {os.path.basename(out_hdf5)}")
+                if progress is not None:
+                    progress(written, total_samples, parent)
+
+            assert write_offset == total_samples, f"Write mismatch: wrote {write_offset}, expected {total_samples}"
+
+            # metadata reflects FINAL per-sample shapes
+            f.attrs["source_root"] = os.path.abspath(root)
+            f.attrs["samples"] = np.int64(total_samples)
+            f.attrs["feature_shape"] = np.array(final_feat_shape, dtype=np.int64)
+            f.attrs["label_shape"] = np.array(label_shape, dtype=np.int64)
+
     # ------------- helpers -------------
 
     @staticmethod
@@ -501,12 +687,15 @@ class HDF5Dataset(Dataset):
                     write_off += n
 
 def main():
-    target_dir = r"H:\ws_abc_chunks\dataset\cropped"
-    out_file  = r"H:\ws_abc_chunks\dataset\cropped\ABC_inside_outside_ks32swo4nbw8nk3_dataset.h5"
-    f_names = os.listdir(target_dir)
-    f_paths = [os.path.join(target_dir, f) for f in f_names]
+    data_root = r"H:\ws_abc_chunks\source\ABC_chunk_01_ks32swo4nbw8nk3_20250929-101945\ABC_chunk_01_labeled"
+    test_h5 = r"H:\ws_abc_chunks\dataset\inside_outside\cropped\ABC_inside_outside_ks32swo4nbw8nk3_dataset.h5"
+    out_h5 = r"H:\ws_abc_chunks\source\ABC_chunk_01_ks32swo4nbw8nk3_20250929-101945\chunk01.h5"
+    HDF5Dataset.convert_bin_tree_to_hdf5(data_root, out_h5)
+    print("---test---")
+    HDF5Dataset.print_file_info(out_h5)
+    print("---reference---")
+    HDF5Dataset.print_file_info(test_h5)
 
-    HDF5Dataset.join_hdf5_files(f_paths, out_file)
 
 
 
