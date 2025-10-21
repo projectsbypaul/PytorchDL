@@ -75,7 +75,7 @@ def crop_hdf_by_class(src_path: str, result_loc: str, out_path: str, n_samples: 
     hdf_dataset.export_active_selection(out_path)
 
 
-def screen_hdf_dataset(src_path: str, result_loc: str,  template: str = "default"):
+def screen_hdf_dataset(src_path: str, result_loc: str,  template: str = "inside_outside"):
     # Print summary
     print("Screening dataset:")
     HDF5Dataset.print_file_info(src_path)
@@ -84,13 +84,16 @@ def screen_hdf_dataset(src_path: str, result_loc: str,  template: str = "default
 
     ds_len = ds.__len__()
 
-    class_temp = color_templates.inside_outside_color_template_abc()
+    if template=="inside_outside":
+        class_temp = color_templates.inside_outside_color_template_abc()
+    elif template =="edge":
+        class_temp = color_templates.edge_color_template_abc()
+    else:
+        raise NotImplementedError(f"Template '{template}' is not implemented.")
 
     class_list = color_templates.get_class_list(class_temp)
 
     class_to_index = color_templates.get_class_to_index_dict(class_temp)
-
-
 
     count_collection = np.zeros((ds_len, len(class_list)), dtype=np.int32)
 
@@ -309,10 +312,10 @@ def get_class_distribution(result_loc,
 
 def main():
 
+    ds_path = r"H:\ws_abc_labelling\export\ABC_chunk_01_ks32swo4nbw8nk3_20250929-101945\ABC_chunk_01_ks32swo4nbw8nk3_20250929-101945_results.h5"
+    result_loc =r"H:\ws_abc_labelling\export\ABC_chunk_01_ks32swo4nbw8nk3_20250929-101945\result.bin"
 
-
-    ds_path = r"H:\ws_abc_chunks\source\ABC_chunk_01_ks32swo4nbw8nk3_20250929-101945\chunk01.h5"
-    result_loc =r"H:\ws_abc_chunks\source\ABC_chunk_01_ks32swo4nbw8nk3_20250929-101945\chunk01_result.bin"
+    HDF5Dataset.print_file_info(ds_path)
 
     screen_hdf_dataset(ds_path, result_loc)
     get_class_distribution(result_loc)

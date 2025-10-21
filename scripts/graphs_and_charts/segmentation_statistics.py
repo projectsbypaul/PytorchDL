@@ -1,205 +1,16 @@
 import pickle
-import random
 import seaborn as sns
 import matplotlib.pyplot as plt
 import numpy as np
 import matplotlib.colors as mcolors
 import pandas as pd
 import os
+
+from numpy.ma.extras import hstack
+
+import visualization.color_templates
 from visualization import color_templates
-from  dl_torch.data_utility.HelperFunctionsABC import __get_ABC_bin_array_from_segment_dir, __get_highest_count_class
-from utility.data_exchange import cppIO
-from dl_torch.data_utility import DataParsing
 from scipy import stats
-import matplotlib.patches as patches
-
-def __balance_dataset():
-
-    target_class_count = 5000
-
-    save_name = f"ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2_balanced_n_{target_class_count}"
-
-    np.random.seed = 420
-
-    statistic_loc = r"C:\Local_Data\ABC\ABC_statistics\balance_parquets\ABC_chunk_01\ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2.parquet"
-
-    save_loc = r"C:\Local_Data\ABC\ABC_statistics"
-
-    class_list = np.array(
-        ['BSpline', 'Cone', 'Cylinder', 'Extrusion', 'Other', 'Plane', 'Revolution', 'Sphere', 'Torus', 'Void'])
-
-    loaded_df = pd.read_parquet(statistic_loc, engine='pyarrow')
-
-    # Extract the column as a Pandas Series
-    extracted_column = loaded_df["ID"]
-    print(f"\nExtracted column '{"ID"}':")
-    print(extracted_column)
-
-    # Get the unique elements of the Series
-    unique_elements = extracted_column.unique()
-    print(f"\nUnique elements in column '{"ID"}':")
-    print(len(unique_elements))
-
-    print(f"Loaded Dataframe with {loaded_df.shape[0]} entries")
-
-    main_class_df = []
-
-    for i in range(class_list.shape[0]):
-        # Create a boolean condition using .isin()
-        condition_multiple = loaded_df['MainClass'].isin([class_list[i]])
-
-        # Apply the condition using .loc
-        df_filtered_multiple = loaded_df.loc[condition_multiple]
-
-        main_class_df.append(df_filtered_multiple)
-
-    sampled_dfs = []
-
-    for index, class_df in enumerate(main_class_df):
-
-       if class_df.shape[0] > target_class_count:
-           random_integers_array = np.random.randint(0, class_df.shape[0] - 1, size=target_class_count)
-           sampled_class_df = class_df.iloc[random_integers_array]
-           sampled_dfs.append(sampled_class_df)
-       else:
-           sampled_dfs.append(class_df)
-
-    stacked_df = pd.concat(sampled_dfs)
-
-
-    print(f"Created Dataframe with {stacked_df.shape[0]} entries")
-    print(pd.Series(stacked_df["MainClass"]).value_counts())
-
-    stacked_df.to_parquet(os.path.join(save_loc, save_name + ".parquet"), engine='pyarrow', compression='snappy')
-
-    '''
-
-    stacked_df = pd.concat(sampled_dfs)
-    print(f"dataset with {stacked_df.shape[0]} samples")
-    specific_column_sums = stacked_df[class_list].sum()
-    print(f"\nSum of columns {class_list}:")
-    print(specific_column_sums)
-
-    # Extract the column as a Pandas Series
-    extracted_column = stacked_df["ID"]
-    print(f"\nExtracted column '{"ID"}':")
-    print(extracted_column)
-
-    # Get the unique elements of the Series
-    unique_elements = extracted_column.unique()
-    print(f"\nUnique elements in column '{"ID"}':")
-    print(len(unique_elements))
-    
-    '''
-
-
-
-    print()
-
-def __data_class_contribution():
-
-    segment_dir = r"C:\Local_Data\ABC\ABC_Data_ks_16_pad_4_bw_5_vs_adaptive_n2"
-    source_dir = r"C:\Local_Data\ABC\ABC_parsed_files"
-    save_dir = r"C:\Local_Data\ABC\ABC_statistics"
-
-    ignored_files = ["origins.bin", "VertToGridIndex.bin", "VertTypeMap.bin", "TypeCounts.bin", "FaceTypeMap.bin", "FaceToGridIndex.bin"]
-    n_min_files = 5
-
-    # Set up dictionary
-
-    class_list = np.array(['BSpline','Cone','Cylinder','Extrusion','Other','Plane','Revolution','Sphere','Torus','Void'])
-    class_list = np.sort(class_list)
-    class_indices = np.arange(len(class_list))
-    class_lot = dict(zip(class_list, class_indices))
-    index_lot = dict(zip(class_indices, class_list, ))
-
-    segment_paths = os.listdir(segment_dir)
-
-    df_statistics = pd.DataFrame(columns=["ID","Segment", 'MainClass','BSpline','Cone','Cylinder','Extrusion','Other','Plane','Revolution','Sphere','Torus','Void'])
-
-    for p_index, path in enumerate(segment_paths):
-
-        full_path = os.path.join(segment_dir, path)
-
-        if len(os.listdir(full_path)) > n_min_files:
-
-            origins = cppIO.read_float_matrix(full_path + "/origins.bin")
-            face_type_map = cppIO.read_type_map_from_binary(full_path + "/FaceTypeMap.bin")
-            face_to_index_map = cppIO.read_float_matrix(full_path + "/FaceToGridIndex.bin")
-
-            bin_arrays = get_ABC_bin_arry_from_segment_dir(full_path, ignored_files)
-
-            print(f"Analyzing {len(bin_arrays)} segments in directory {path} ...")
-
-            obj_path = os.path.join(source_dir, path ,path + ".obj")
-
-            _ , faces = DataParsing.parse_obj(obj_path)
-
-            labels = []
-
-            for g_index, grid in enumerate(bin_arrays):
-
-                df_voxel_count = dict()
-
-                for index, surf_type in enumerate(class_list):
-                    df_voxel_count.update({str(surf_type): 0})
-
-                grid_dim = grid.shape[0]
-
-                origin = np.asarray(origins[g_index])
-
-                top = origin + [grid_dim - 1, grid_dim - 1, grid_dim - 1]
-
-                label = np.zeros(shape=[grid_dim, grid_dim, grid_dim, class_list.shape[0]])
-
-                write_count = 0
-
-                for face_index, face_center in enumerate(face_to_index_map):
-
-                    if origin[0] <= face_center[0] <= top[0] and origin[1] <= face_center[1] <= top[1] and origin[2] <= \
-                            face_center[2] <= \
-                            top[2]:
-                        grid_index = face_center - origin
-
-                        type_string = face_type_map[face_index]
-                        one_hot_index = class_lot[type_string[0]]
-                        label[int(grid_index[0]), int(grid_index[1]), int(grid_index[2]), one_hot_index] += 1
-                        write_count += 1
-
-                for i, j, k in np.ndindex(label.shape[0], label.shape[1], label.shape[2]):
-                    voxel = label[i, j, k, :]
-
-                    if np.sum(voxel) > 0:
-                        max_index = np.argmax(voxel)
-                        label[i, j, k, :] = np.zeros_like(voxel)
-                        label[i, j, k, max_index] = 1
-                        df_voxel_count[index_lot[max_index]] += 1
-                    else:
-                        label[i, j, k, class_lot["Void"]] = 1
-                        df_voxel_count['Void'] += 1
-
-                main_class = __get_highest_count_class(df_voxel_count)
-
-                new_df_entry = {"ID":path, "Segment":g_index, "MainClass": main_class , **df_voxel_count}
-
-                # print(new_df_entry)
-
-                # Determine the next available index label
-                # If your DataFrame uses default integer indexing and is not empty,
-                # new_index_label = df_statistics.index.max() + 1
-                # If it's empty, the first label can be 0.
-                # Or you can use any unique custom label.
-                if df_statistics.empty:
-                    new_index_label = 0
-                else:
-                    new_index_label = df_statistics.index.max() + 1
-
-                df_statistics.loc[new_index_label] = new_df_entry
-
-            print(f"Wrote data to dataframe...processing {path} done")
-
-    # pip install pyarrow pandas
-    df_statistics.to_parquet(os.path.join(save_dir,os.path.basename(segment_dir) + ".parquet"), engine='pyarrow', compression='snappy')
 
 def __plot_confusion_matrix(ccm_result_loc: str, class_plate):
 
@@ -334,15 +145,192 @@ def __histogramm_segmentation_samples(val_result_loc :  str):
     plt.tight_layout()
     plt.show()
 
+def __epoch_from_string(filename: str):
+    after_ep = filename.split("EP", 1)[1]
+    ep_number = after_ep.split("_", 1)[0]
+    return int(ep_number)
+
+def __list_matching_files(root: str, search_str: str):
+
+    f_names = np.asarray(os.listdir(root))
+
+    matching = np.asarray([search_str in name for name in f_names])
+
+    matches = f_names[matching]
+
+    matches_path = [os.path.join(root, match) for match in matches]
+
+    return matches_path
+
+def __extract_distribution_metrics(val_result_bin: str):
+    # create model signature
+    model_name = os.path.basename(val_result_bin)
+    model_name, _ = os.path.splitext(model_name)
+
+    with open(val_result_bin, "rb") as f:
+        sample_result = pickle.load(f)
+
+    df = pd.DataFrame(sample_result, columns=['Sample_ID', 'ABC_ID', 'Accuracy'])
+
+    current_path = os.path.abspath(val_result_bin)
+    path_without_ext = os.path.splitext(current_path)[0]
+
+    df.to_csv(path_without_ext + ".csv")
+
+    sample_iou = np.array([item[2] * 100 for item in sample_result])
+    rounded_data = np.round(sample_iou, 2)
+    total_samples = len(sample_iou)
+
+    # Calculate statistics
+    mean_val = np.mean(sample_iou)
+    median_val = np.median(sample_iou)
+
+    mode_result = stats.mode(rounded_data, keepdims=True)
+    mode_val = mode_result.mode[0]
+    mode_count = mode_result.count[0]
+
+    # Calculate percentiles
+    p25 = np.percentile(sample_iou, 25)
+    p75 = np.percentile(sample_iou, 75)
+
+
+    distribution_metrics={
+        "mean":mean_val,
+        "median":median_val,
+        "mode":mode_val,
+        "p25":p25,
+        "p75":p75
+    }
+
+    return distribution_metrics
+
+def __extract_diagonal_from_cmm(cmm_bin : str, class_template):
+
+    class_list = color_templates.get_class_list(class_template)
+
+    with open(cmm_bin, "rb") as f:
+        ccm = pickle.load(f)
+
+    n_predictions = np.sum(ccm, axis=1)
+
+    ccm_norm = []
+
+    for i in range(ccm.shape[0]):
+        row = ccm[i]
+        if n_predictions[i] > 0:
+            row = row / n_predictions[i]
+
+        ccm_norm.append(row)
+
+    ccm_norm = np.asarray(ccm_norm)
+
+    diagonal = np.ndarray(shape=len(class_list), dtype=float)
+
+    for i in range(len(class_list)):
+        diagonal[i] = ccm_norm[i,i]
+
+    return diagonal
+
+def __aggregate_diagonal(root: str, search_str : str, class_template):
+
+    ccm_file_paths = __list_matching_files(root, search_str)
+
+    class_list = color_templates.get_class_list(class_template)
+
+    column_names = np.hstack([["EP"], np.asarray(class_list)])
+
+    data_arr = np.ndarray(shape=(len(ccm_file_paths) ,len(class_list) +1))
+
+    for i, f in enumerate(ccm_file_paths):
+        diagonal = __extract_diagonal_from_cmm(f, class_template)
+        ep = __epoch_from_string(os.path.basename(f))
+        row = np.hstack([ep, diagonal])
+        data_arr[i] = row
+
+    diagonal_df = pd.DataFrame(data_arr, columns=column_names)
+
+    diagonal_df_sorted = diagonal_df.sort_values(by=['EP'])
+
+    return diagonal_df_sorted
+
+def __aggregate_distribution_metrics(root: str, search_str : str, class_template):
+
+    stats_file_paths = __list_matching_files(root, search_str)
+
+    class_list = color_templates.get_class_list(class_template)
+
+    keys = __extract_distribution_metrics(stats_file_paths[0]).keys()
+    keys = [k for k in keys]
+
+    data_arr = data_arr = np.ndarray(shape=(len(stats_file_paths) ,len(keys) +1))
+
+    column_names = np.hstack([["EP"], np.asarray(keys)])
+
+    for i, f in enumerate(stats_file_paths):
+
+        dist_stats = __extract_distribution_metrics(f)
+        ep = __epoch_from_string(os.path.basename(f))
+        vals = dist_stats.values()
+        vals = [v for v in vals]
+        row = np.hstack([[ep], vals])
+        data_arr[i] = row
+
+    stat_df = pd.DataFrame(data_arr, columns=column_names)
+
+    stat_df_sorted = stat_df.sort_values(by=['EP'])
+
+    return stat_df_sorted
+
+def __line_chart_from_dataframe(df: pd.DataFrame, x_label: str, y_label: str, title: str = "Line Chart from DataFrame"):
+
+    plt.figure(figsize=(8, 5))
+    for col in df.columns[1:]:  # skip the first column (X)
+        plt.plot(df["EP"], df[col], label=col)
+
+    plt.xlabel("X")
+    plt.ylabel("Values")
+    plt.title("Line Chart from DataFrame")
+    plt.legend()
+    plt.grid(True)
+    plt.show()
+
+def plot_default_line_charts():
+
+    root = r"H:\ws_hpc_workloads\hpc_val\Balanced20k"
+    search_str = ["_val_result_mcm.bin", "val_result.bin"]
+    template = color_templates.inside_outside_color_template_abc()
+
+    df_stats = __aggregate_distribution_metrics(root, search_str[1], template)
+    df_ccm = __aggregate_diagonal(root, search_str[0], template)
+
+    __line_chart_from_dataframe(df_stats[["EP", "median", "mean"]], "EP", "abs")
+    class_filter = np.asarray(color_templates.get_class_list(template)[:6])
+    class_filter = np.hstack(["EP", class_filter])
+    __line_chart_from_dataframe(df_ccm[class_filter], "EP", "p%")
+
+    ccm_average = pd.DataFrame({
+        "EP": df_ccm["EP"],
+        "ccm_mean": df_ccm.iloc[:, 1:].mean(axis=1) * 100
+    })
+
+    __line_chart_from_dataframe(ccm_average, "EP", "p%")
+
+    df_abc = df_stats[["EP", "median", "mean"]].merge(ccm_average[["EP", "ccm_mean"]], on="EP", how="left")
+
+    __line_chart_from_dataframe(df_abc, "EP", "p%")
+
 def main():
-    '''
-    stats_file = r"H:\ws_hpc_workloads\hpc_val\Balanced20k\Balanced20k_InOut32_EP65_val_result_mcm.bin"
+
+    stats_file = r"H:\ws_hpc_workloads\hpc_val\Balanced20k\Balanced20k_InOut32_EP10_val_result_mcm.bin"
     template = color_templates.inside_outside_color_template_abc()
     __plot_confusion_matrix(stats_file, template)
-    '''
 
+
+    '''
     result_file = r"H:\ws_hpc_workloads\hpc_val\SegDemo\SegDemoInOut_32_EP50_val_result.bin"
     __histogramm_segmentation_samples(result_file)
+    '''
+
 
 
 

@@ -401,8 +401,8 @@ def train_model_hdf5(
     # Device & training components
     log_cuda_status()
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-
     criterion = nn.CrossEntropyLoss()
+
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
     scheduler = get_linear_scheduler(optimizer, lr, lr * decay_order, epochs)
 

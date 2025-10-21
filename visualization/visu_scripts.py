@@ -812,121 +812,13 @@ def draw_voxel_input_slice_from_dir(
     plt.tight_layout()
     plt.show()
 
-def draw_voxel_slice_from_dir(
-    data_loc: str,
-    weights_loc: str,
-    kernel_size: int,
-    padding: int,
-    n_classes: int,
-    slice_axis: int = 2,
-    slice_index: int = None
-):
-    # 1. LOAD DATA
-    data_arrays = cppIOexcavator.load_segments_from_binary(
-        os.path.join(data_loc, "segmentation_data_segments.bin")
-    )
-    seg_info = cppIOexcavator.parse_dat_file(
-        os.path.join(data_loc, "segmentation_data.dat")
-    )
-
-    # 2. Prepare Torch Input
-    model_input = torch.tensor(np.array(data_arrays))
-    model_input = model_input.unsqueeze(1)
-
-    # 3. Load Model
-    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    model = UNet3D_16EL(in_channels=1, out_channels=n_classes)
-    state_dict = torch.load(weights_loc, map_location=device)
-    model.load_state_dict(state_dict)
-    model.to(device)
-    model.eval()
-
-    # 4. Model Predict
-    predictions = []
-    batch_size = 32
-
-    with torch.no_grad():
-        for start in range(0, len(model_input), batch_size):
-            end = start + batch_size
-            batch = model_input[start:end].to(device)
-            output = model(batch)
-            _, pred = torch.max(output, 1)
-            predictions.append(pred.cpu().numpy())
-
-    # 5. Assemble full voxel grid
-    origins = seg_info["ORIGIN_CONTAINER"]["data"]
-    origins_array = np.asarray(origins)
-    bottom_coord = np.min(origins_array, axis=0)
-    top_coord = np.max(origins_array + kernel_size - 1, axis=0)
-    offsets = [np.array([0, 0, 0]) - bottom_coord + origin for origin in origins]
-    dim_vec = top_coord - bottom_coord
-
-    color_temp = color_templates.default_color_template_abc()
-    class_list = color_templates.get_class_list(color_temp)
-
-    void_class_name = 'Void'
-    void_class_idx = class_list.index(void_class_name)
-    full_grid = np.full(
-        shape=(int(dim_vec[0]), int(dim_vec[1]), int(dim_vec[2])),
-        fill_value=void_class_idx,
-        dtype=np.float32
-    )
-
-    for g_index in range(prediction.shape[0]):
-        grid = prediction[g_index, :]
-        offset = offsets[g_index]
-        for x in range(int(padding * 0.5), kernel_size - int(padding * 0.5)):
-            for y in range(int(padding * 0.5), kernel_size - int(padding * 0.5)):
-                for z in range(int(padding * 0.5), kernel_size - int(padding * 0.5)):
-                    full_grid[
-                        int(offset[0]) + x,
-                        int(offset[1]) + y,
-                        int(offset[2]) + z
-                    ] = grid[x, y, z]
-
-    # 6. Color setup
-    color_temp = color_templates.default_color_template_abc()
-    class_list = color_templates.get_class_list(color_temp)
-    custom_colors = color_templates.get_color_dict(color_temp)
-    custom_opacity = color_templates.get_opacity_dict(color_temp)
-    color_list = [tuple(c/255 for c in custom_colors[lbl]) for lbl in class_list]
-    opacity_list = [custom_opacity[lbl] for lbl in class_list]
-
-    # 7. Select slice
-    if slice_index is None:
-        slice_index = full_grid.shape[slice_axis] // 2  # center by default
-
-    if slice_axis == 0:
-        img = full_grid[slice_index, :, :]
-    elif slice_axis == 1:
-        img = full_grid[:, slice_index, :]
-    elif slice_axis == 2:
-        img = full_grid[:, :, slice_index]
-    else:
-        raise ValueError("slice_axis must be 0, 1, or 2")
-
-    # ----
-    # Always include the Void class in the color mapping and legend!
-    # So, we include all classes (not just visible ones)
-    img_vis = img.astype(int)
-    cmap = ListedColormap(color_list)
-
-    legend_elements = [
-        Patch(facecolor=color_list[i], label=class_list[i])
-        for i in range(len(class_list))
-    ]
-
-    plt.figure(figsize=(8, 8))
-    plt.imshow(img_vis, cmap=cmap, origin='lower', vmin=0, vmax=len(class_list)-1)
-    plt.legend(handles=legend_elements, loc='upper right', bbox_to_anchor=(1.2, 1))
-    plt.title(f"Slice axis={slice_axis}, index={slice_index}")
-    plt.axis('off')
-    plt.tight_layout()
-    plt.show()
-
 def main():
-    data_loc = r"H:\ws_label_test\label\00035328"
-    visu_cpp_label_on_dir(data_loc, 32,  4)
+    data_loc=r"H:\ws_seg_test\debug_output\REBeleg_Refined"
+    weights_loc=r"H:\ws_hpc_workloads\hpc_models\Balanced20k_Edge32_LRE-05\Balanced20k_Edge32_LRE-05_save_10.pth"
+
+    visu_voxel_on_dir(data_loc, weights_loc, 32, 8, 9)
+    #data_loc = r"H:\ws_label_test\label\00035328"
+    #visu_cpp_label_on_dir(data_loc, 32,  4)
 
 if __name__=="__main__":
     main()

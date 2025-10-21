@@ -30,6 +30,8 @@ def main():
             'crop_hdf5',
             'tree_to_hdf5',
             'join_hdf5',
+            'screen_hdf5',
+            'crop_hdf5_by_class',
             'help',
         ],
     )
@@ -124,6 +126,8 @@ def main():
             print("main.py data_utility crop_hdf5 <target> <n_samples>")
             print("main.py data_utility tree_to_hdf5 <root> <h5_out>")
             print("main.py data_utility join_hdf5 <h5_in_a> <h5_in_b> <h5_out_ab>")
+            print("main.py data_utility screen_hdf5 <h5_src> <result_bin> <template>")
+            print("main.py data_utility crop_hdf5_by_class <h5_src> <result_bin> <h5_out> <n_samples> <template>")
             sys.exit(0)
 
         elif args.mode == 'create_subsets':
@@ -225,6 +229,32 @@ def main():
                 sys.exit(1)
 
             RunABCHelperFunctions.run_join_hdf5_files(h5_a, h5_b, h5_ab)
+
+        elif args.mode == 'screen_hdf5':
+            try:
+                h5_src: str = args.arg0
+                result_bin: str = args.arg1
+                template: str = args.arg2
+            except (TypeError, ValueError):
+                print("[ERROR] Invalid or missing arguments for 'screen_hdf5'.")
+                p_data_utility.print_help()
+                sys.exit(1)
+
+            RunABCHelperFunctions.run_screen_dataset(h5_src, result_bin, template)
+
+        elif args.mode == 'crop_hdf5_by_class':
+            try:
+                h5_src: str = args.arg0
+                result_bin: str = args.arg1
+                h5_out: str = args.arg2
+                n_samples: int = int(args.arg3)
+                template: str = args.arg4
+            except (TypeError, ValueError):
+                print("[ERROR] Invalid or missing arguments for 'crop_hdf5_by_class'.")
+                p_data_utility.print_help()
+                sys.exit(1)
+
+            RunABCHelperFunctions.run_crop_hdf_by_class(h5_src, result_bin, h5_out, n_samples, template)
 
         else:
             print("[ERROR] Invalid mode for data_utility.")

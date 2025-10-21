@@ -687,6 +687,7 @@ class HDF5Dataset(Dataset):
                     write_off += n
 
 def main():
+    '''
     data_root = r"H:\ws_abc_chunks\source\ABC_chunk_01_ks32swo4nbw8nk3_20250929-101945\ABC_chunk_01_labeled"
     test_h5 = r"H:\ws_abc_chunks\dataset\inside_outside\cropped\ABC_inside_outside_ks32swo4nbw8nk3_dataset.h5"
     out_h5 = r"H:\ws_abc_chunks\source\ABC_chunk_01_ks32swo4nbw8nk3_20250929-101945\chunk01.h5"
@@ -695,7 +696,14 @@ def main():
     HDF5Dataset.print_file_info(out_h5)
     print("---reference---")
     HDF5Dataset.print_file_info(test_h5)
+    '''
 
+    h5_a=r"H:\ws_abc_labelling\export\ABC_ks32swo4nbw8nk3_edge\cropped_ABC_chunk_06_ks32swo4nbw8nk3_20250930-082858_dataset\ABC_chunk_06_ks32swo4nbw8nk3_20250930-082858_dataset_crp20000.h5"
+    h5_b=r"H:\ws_abc_labelling\export\ABC_ks32swo4nbw8nk3_edge\joined_iter005\joined_iter005.h5"
+    h5_ab=r"H:\ws_abc_labelling\export\ABC_ks32swo4nbw8nk3_edge\ABC_ks32swo4nbw8nk3_edge.h5"
+
+    HDF5Dataset.join_hdf5_files([h5_a, h5_b],h5_ab)
+    HDF5Dataset.print_file_info(h5_ab)
 
 
 

@@ -35,6 +35,20 @@ class RunABCHelperFunctions:
     def run_join_hdf5_files(h5_in_a : str, h5_in_b : str, h5_out_ab: str):
         HDF5Dataset.join_hdf5_files([h5_in_a, h5_in_b], h5_out_ab)
 
+    @staticmethod
+    def run_screen_dataset(h5_src: str, result_bin: str, template :str):
+        hdf5_utility.screen_hdf_dataset(h5_src, result_bin, template)
+
+    @staticmethod
+    def run_crop_hdf_by_class(h5_source: str, result_bin: str, h5_out: str, n_samples: int, template: str):
+        if template == "inside_outside":
+           ignore_index=[6,7]
+        elif template == "edge":
+            ignore_index=[6,7,8]
+        else:
+            raise NotImplementedError(f"Template '{template}' is not implemented.")
+        hdf5_utility.crop_hdf_by_class(h5_source, result_bin, h5_out, n_samples, ignore_index)
+
 def main():
     pass
 
