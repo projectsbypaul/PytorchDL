@@ -2,16 +2,10 @@ import os
 import argparse
 import pickle
 from typing import Optional
-
 import torch
-from pyarrow import int64
-from sympy.series.limitseq import dominant
-from concurrent.futures import ProcessPoolExecutor, as_completed
-
 from dl_torch.data_utility.HDF5Dataset import HDF5Dataset
 from visualization import color_templates
 import numpy as np
-import pandas as pd
 import random
 
 def _suffix_path(src_path: str, n_samples: int) -> str:
@@ -112,7 +106,7 @@ def screen_hdf_dataset(src_path: str, result_loc: str,  template: str = "inside_
             counter[index] += count
 
         count_collection[i] = counter
-        print(f"Evaluated class count of item: {i}/{ds_len}")
+        # print(f"Evaluated class count of item: {i}/{ds_len}")
 
     with open(result_loc, "wb") as f:
         pickle.dump(count_collection,f)
