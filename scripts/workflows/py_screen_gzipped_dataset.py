@@ -12,7 +12,7 @@ import shutil
 
 def main():
 
-    gzipped_h5 = r"H:\ABC_InOut_ks32swo4nbw8nk3_crp20000\ABC_InOut_ks32swo4nbw8nk3_crp20000.h5.gz"
+    gzipped_h5 = r"H:\ws_export\ABC_InOut_ks32swo4nbw8nk3_crp50000.h5.gz"
     template = "inside_outside"
 
     h5_name = os.path.basename(gzipped_h5).split('.')[0]

@@ -447,7 +447,7 @@ def visu_cpp_label_on_dir(data_loc: str, kernel_size: int, padding: int,
     full_grid = np.full(tuple(dim_vec), fill_value=0, dtype=np.int32)  # placeholder; set after we know void_idx
 
     # Colors etc.
-    color_temp = color_templates.inside_outside_color_template_abc()
+    color_temp = color_templates.edge_color_template_abc()
     class_list = color_templates.get_class_list(color_temp)
     custom_colors = color_templates.get_color_dict(color_temp)
     custom_opacity = color_templates.get_opacity_dict(color_temp)
@@ -813,12 +813,14 @@ def draw_voxel_input_slice_from_dir(
     plt.show()
 
 def main():
-    data_loc=r"H:\ws_seg_test\debug_output\REBeleg_Refined"
+    #Todo draw .obj from label via pyvista
+
+    data_loc=r"H:\ws_label_test\label\00013045"
     weights_loc=r"H:\ws_hpc_workloads\hpc_models\Balanced20k_Edge32_LRE-05\Balanced20k_Edge32_LRE-05_save_10.pth"
 
-    visu_voxel_on_dir(data_loc, weights_loc, 32, 8, 9)
+    #visu_voxel_on_dir(data_loc, weights_loc, 32, 8, 9)
     #data_loc = r"H:\ws_label_test\label\00035328"
-    #visu_cpp_label_on_dir(data_loc, 32,  4)
+    visu_cpp_label_on_dir(data_loc, 32,  0)
 
 if __name__=="__main__":
     main()

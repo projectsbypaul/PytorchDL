@@ -89,7 +89,7 @@ def __crop_gzipped_dataset(gzipped_dataset, unpack_dir, stats_dir, cropped_dir, 
 
 
 def main():
-    n_samples = 50000
+    n_samples = 100000
     template = "inside_outside"
     ignore_index = [6,7]
     target_dir = r"H:\ws_abc_labelling\export"
@@ -140,8 +140,9 @@ def main():
             shutil.copyfileobj(f_in, f_out)
     logging.info(f"Compression done")
 
+
     logging.info(f"Computing class distribution")
-    hdf5_utility.screen_hdf_dataset(h5_out_name, stat_bin, template=template)
+    hdf5_utility.screen_hdf_dataset(h5_out, stat_bin, template=template)
     hdf5_utility.get_class_distribution(stat_bin)
     logging.info(f"Computing class distribution done")
 
