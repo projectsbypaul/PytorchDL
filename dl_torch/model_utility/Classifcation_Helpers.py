@@ -1,4 +1,14 @@
 import numpy as np
+import pickle
+
+def get_voxel_count_from_stats_binary(stat_bin_path: str):
+
+    with open(stat_bin_path, "rb") as f:
+        h5_voxel_count = pickle.load(f)
+
+    class_count = np.sum(h5_voxel_count, axis=0)
+
+    return class_count
 
 def get_fcb_weights_from_voxel_count(voxel_count: np.array):
 

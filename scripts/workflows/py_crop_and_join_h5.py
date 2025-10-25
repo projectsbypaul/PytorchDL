@@ -89,17 +89,15 @@ def __crop_gzipped_dataset(gzipped_dataset, unpack_dir, stats_dir, cropped_dir, 
 
 
 def main():
-    n_samples = 100000
-    template = "inside_outside"
-    ignore_index = [6,7]
-    target_dir = r"H:\ws_abc_labelling\export"
-    #target_dir = r"/home/pschuster/workspaces/ABC_test"
-    ws_name = os.path.basename(target_dir)
-    workspace  =  rf"H:\ws_{ws_name}"
-    log_file = rf"{workspace}/{ws_name}.log"
-    #workspace = rf"/home/pschuster/workspaces/ws_{ws_name}"
+    n_samples = 10000
+    template = "edge"
+    ignore_index = [7,8]
     search_str = "h5.gz"
     h5_out_name = f"ABC_InOut_ks32swo4nbw8nk3_crp{n_samples}"
+    target_dir = r"H:\ws_abc_labelling\export"
+
+    workspace  =  rf"H:\ws_{h5_out_name}"
+    log_file = rf"{workspace}/{h5_out_name}.log"
     h5_out = os.path.join(workspace, f"{h5_out_name}.h5")
     stat_bin = os.path.join(workspace, f"{h5_out_name}_stats.bin")
 

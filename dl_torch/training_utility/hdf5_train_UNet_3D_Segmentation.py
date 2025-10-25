@@ -345,6 +345,7 @@ def train_model_hdf5(
     model_seed: int | None = None,
     model_type: str = "default",
     resume_epoch: int | None = None,
+    class_weights: list[float] | None = None
 ):
     # -----------------------------------------------------------------------------
     # WARNING: Determinism in this training pipeline
@@ -401,7 +402,26 @@ def train_model_hdf5(
     # Device & training components
     log_cuda_status()
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    criterion = nn.CrossEntropyLoss()
+
+    #set up class weights
+    if class_weights is not None:
+        if class_weights.__len__() == n_classes:
+            print(f"Using weighted CrossEntropyLoss: ")
+            for i, weight in enumerate(class_weights):
+                print(f"{i} : {weight}")
+            weights_tensor = torch.tensor(class_weights, dtype=torch.float32)
+            criterion = nn.CrossEntropyLoss(weight=weights_tensor)
+        else:
+            print(f"Missmatch: {class_weights.__len__()} weights for {n_classes} classes")
+            print(f"Defaulting to CrossEntropyLoss not weights")
+            criterion = nn.CrossEntropyLoss()
+
+
+    else:
+        print(f"No class weights given. Criterion CrossEntropyLoss not weights")
+        criterion = nn.CrossEntropyLoss()
+
+
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
     scheduler = get_linear_scheduler(optimizer, lr, lr * decay_order, epochs)
