@@ -410,7 +410,7 @@ def train_model_hdf5(
             for i, weight in enumerate(class_weights):
                 print(f"{i} : {weight}")
             weights_tensor = torch.tensor(class_weights, dtype=torch.float32)
-            criterion = nn.CrossEntropyLoss(weight=weights_tensor)
+            criterion = nn.CrossEntropyLoss(weight=weights_tensor.to(device))
         else:
             print(f"Missmatch: {class_weights.__len__()} weights for {n_classes} classes")
             print(f"Defaulting to CrossEntropyLoss not weights")
