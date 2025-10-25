@@ -1,6 +1,5 @@
 import os.path
-
-from numpy.f2py.auxfuncs import throw_error
+import numpy as np
 
 from dl_torch.model_utility import Classifcation_Helpers
 from dl_torch.training_utility.hdf5_train_UNet_3D_Segmentation import train_model_hdf5
@@ -69,7 +68,8 @@ class RunTrainingUtility:
 
         voxel_count = Classifcation_Helpers.get_voxel_count_from_stats_binary(stat_bin)
         fcb_weights = Classifcation_Helpers.get_fcb_weights_from_voxel_count(voxel_count)
-        fcb_weights_list = fcb_weights.astype(float).tolist()
+        fcb_weights = np.atleast_1d(fcb_weights.astype(float))
+        fcb_weights_list = fcb_weights.tolist()
 
         train_model_hdf5(
             model_name, hdf5_path, model_weights_loc, epochs, backup_epochs, batch_size,
@@ -108,7 +108,8 @@ class RunTrainingUtility:
 
         voxel_count = Classifcation_Helpers.get_voxel_count_from_stats_binary(stat_bin)
         mfcb_weights = Classifcation_Helpers.get_fcb_median_weights_from_class_count(voxel_count)
-        mfcb_weights_list = mfcb_weights.astype(float).tolist()
+        mfcb_weights = np.atleast_1d(mfcb_weights.astype(float))
+        mfcb_weights_list = mfcb_weights.tolist()
 
         train_model_hdf5(
             model_name, hdf5_path, model_weights_loc, epochs, backup_epochs, batch_size,

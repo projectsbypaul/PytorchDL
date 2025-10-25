@@ -405,7 +405,7 @@ def train_model_hdf5(
 
     #set up class weights
     if class_weights is not None:
-        if class_weights.__len__() == n_classes:
+        if len(class_weights) == n_classes:
             print(f"Using weighted CrossEntropyLoss: ")
             for i, weight in enumerate(class_weights):
                 print(f"{i} : {weight}")
