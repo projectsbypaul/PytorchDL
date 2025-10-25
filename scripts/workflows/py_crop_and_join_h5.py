@@ -141,7 +141,7 @@ def main():
 
     logging.info(f"Computing class distribution")
     hdf5_utility.screen_hdf_dataset(h5_out, stat_bin, template=template)
-    hdf5_utility.get_class_distribution(stat_bin)
+    hdf5_utility.get_class_distribution(stat_bin, class_template=template)
     logging.info(f"Computing class distribution done")
 
     logging.info(f"Computing weights for frequency balancing")

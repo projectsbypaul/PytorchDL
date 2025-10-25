@@ -3,6 +3,8 @@ import argparse
 import pickle
 from typing import Optional
 import torch
+from numpy.f2py.auxfuncs import throw_error
+
 from dl_torch.data_utility.HDF5Dataset import HDF5Dataset
 from visualization import color_templates
 import numpy as np
@@ -185,7 +187,7 @@ def __get_indicis_by_class(result_loc, ignore_index):
 
     return unique_classes, index_container
 
-def get_class_distribution(result_loc,
+def get_class_distribution(result_loc, class_template,
                      ignore_names=("Inside", "Outside"),
                      use_tiebreak_noise=False,
                      mark_empty_as_unknown=True):
@@ -209,7 +211,14 @@ def get_class_distribution(result_loc,
         count_collection = np.asarray(count_collection)
 
     # ---- classes & mappings ----
-    class_temp = color_templates.inside_outside_color_template_abc()
+
+    if class_template == "inside_outside":
+        class_temp = color_templates.inside_outside_color_template_abc()
+    elif class_template == "edge":
+        class_temp = color_templates.edge_color_template_abc()
+    else:
+        raise ValueError(f"Template '{class_template}' not implemented.")
+
     class_list = color_templates.get_class_list(class_temp)
     class_to_index = color_templates.get_class_to_index_dict(class_temp)
     index_to_class = color_templates.get_index_to_class_dict(class_temp)
