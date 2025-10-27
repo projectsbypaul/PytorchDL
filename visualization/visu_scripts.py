@@ -1,3 +1,5 @@
+from networkx.readwrite.edgelist import write_weighted_edgelist
+
 from visualization import color_templates
 import torch
 import pickle
@@ -187,74 +189,50 @@ def visu_mesh_model_on_dir(data_loc : str,weights_loc : str, save_loc : str, ker
 
     # print(f"Mesh Intersection Over Union {Custom_Metrics.mesh_IOU(ftm_prediction, ftm_ground_truth)}")
 
-def visu_histogram_segmentation_samples(val_result_loc :  str):
+def run_prediction_on_dir(data_loc: str, weights_loc: str, n_classes: int, model_type:str = "UNet_Hilbig"):
 
-    # create model signature
-    model_name = os.path.basename(val_result_loc)
-    model_name, _ = os.path.splitext(model_name)
+    # -----------------------------
+    # 1) Load segments + metadata
+    # -----------------------------
+    data_arrays = cppIOexcavator.load_segments_from_binary(
+        os.path.join(data_loc, "segmentation_data_segments.bin")
+    )
 
-    with open(val_result_loc, "rb") as f:
-        sample_result = pickle.load(f)
+    predictions_bin_pth = os.path.join(data_loc, "segmentation_data_predictions.bin")
 
-    df = pd.DataFrame(sample_result, columns=['Sample_ID', 'ABC_ID', 'Accuracy'])
+    # Model input: (N,1,ks,ks,ks)
+    model_input = torch.tensor(np.array(data_arrays)).unsqueeze(1)
 
-    current_path = os.path.abspath(val_result_loc)
-    path_without_ext = os.path.splitext(current_path)[0]
-
-    df.to_csv(path_without_ext + ".csv")
-
-    sample_iou = np.array([item[2]*100 for item in sample_result])
-    rounded_data = np.round(sample_iou, 2)
-    total_samples = len(sample_iou)
-
-
-
-    # Settings
-    x_limit = 100
-    bins = 100
-
-    # Create plot
-    fig, ax = plt.subplots(1, 1, figsize=(12, 8))
-
-    # Plot histogram and capture bar info
-    counts, bin_edges, patches = ax.hist(sample_iou, bins=bins, alpha=0.6, edgecolor='black')
-
-    # Annotate each bar with count value
-    for count, x in zip(counts, bin_edges[:-1]):
-        if count > 0:
-            ax.text(x + (bin_edges[1] - bin_edges[0]) / 2, count, f'{int(count)}',
-                    ha='center', va='bottom', fontsize=8, rotation=90)
-
-    # Calculate statistics
-    mean_val = np.mean(sample_iou)
-    median_val = np.median(sample_iou)
-
-    mode_result = stats.mode(rounded_data, keepdims=True)
-    mode_val = mode_result.mode[0]
-    mode_count = mode_result.count[0]
-
-    # Calculate percentiles
-    p25 = np.percentile(sample_iou, 25)
-    p75 = np.percentile(sample_iou, 75)
-
-    # Add vertical lines
-    ax.axvline(mean_val, color='red', linestyle='dashed', linewidth=1.5, label=f'Mean: {mean_val:.2f}')
-    ax.axvline(mode_val, color='blue', linestyle='solid', linewidth=1.5, label=f'Mode: {mode_val:.2f}')
-    ax.axvline(median_val, color='green', linestyle='dotted', linewidth=1.5, label=f'Median: {median_val:.2f}')
-    ax.axvline(p25, color='orange', linestyle='dashdot', linewidth=1.5, label=f'25th Percentile: {p25:.2f}')
-    ax.axvline(p75, color='purple', linestyle='dashdot', linewidth=1.5, label=f'75th Percentile: {p75:.2f}')
-
-    # Titles and limits
-    ax.set_title(f'Histogram of IoU on ABC samples\nTotal samples: {total_samples} \n{model_name}')
-    ax.set_xlim(0, x_limit)
-    ax.set_xlabel("IoU Value")
-    ax.set_ylabel("Frequency")
-    ax.legend()
+    # -----------------------------
+    # 2) Load model + predict
+    # -----------------------------
+    print("Evaluating Model")
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print("Using device:", device)
 
 
+    if model_type == "UNet_Hilbig":
+        model = UNet_Hilbig(in_channels=1, out_channels=n_classes)
+    elif model_type == "UNet_16EL":
+        model = UNet3D_16EL(in_channels=1, out_channels=n_classes)
+    else:
+        raise NotImplementedError(f"Model type '{model_type}' not implemented")
 
-    plt.tight_layout()
-    plt.show()
+    state_dict = torch.load(weights_loc, map_location='cpu')
+    model.load_state_dict(state_dict)
+    model.to(device)
+    model.eval()
+
+    print("model predicting outputs...")
+    device = torch.device("cuda", 0)
+    batch_size = 4  # start tiny, then increase if it fits
+    prediction = predict_in_batches(model, model_input, batch_size, device, use_amp=True, dtype=torch.bfloat16)
+
+    # -----------------------------
+    # 3) Save predictions
+    # -----------------------------
+    print(f"Saving model predictions to {predictions_bin_pth}")
+    cppIOexcavator.save_predictions(predictions_bin_pth, prediction)
 
 
 def visu_voxel_on_dir(data_loc: str, weights_loc: str, kernel_size: int, padding: int, n_classes: int,
@@ -323,7 +301,7 @@ def visu_voxel_on_dir(data_loc: str, weights_loc: str, kernel_size: int, padding
 
     full_grid = np.full(tuple(dim_vec), fill_value=void_idx, dtype=label_dtype)
 
-    print("assembling model outputs...")
+    #assmenblin outputs
     ks       = int(kernel_size)
     pad_half = int(padding // 2)
     x0, x1   = pad_half, ks - pad_half
@@ -342,6 +320,7 @@ def visu_voxel_on_dir(data_loc: str, weights_loc: str, kernel_size: int, padding
     # -----------------------------
     # 4) Build draw set: non-Inside/Outside voxels
     # -----------------------------
+    print()
     labels = full_grid.astype(np.int32, copy=False)
 
     hidden = {'Outside'}
@@ -704,7 +683,7 @@ def visu_label_on_dir(data_loc: str, torch_path: str, kernel_size: int, padding:
     p.show()
 
 
-def get_vdb_from_dir(data_loc: str, weights_loc: str, kernel_size: int, padding: int, n_classes, grid_name: str):
+def get_prediction_from_dir(data_loc: str, weights_loc: str, kernel_size: int, padding: int, n_classes, grid_name: str):
 
     data_arrays = cppIOexcavator.load_segments_from_binary(os.path.join(data_loc ,"segmentation_data_segments.bin"))
     seg_info = cppIOexcavator.parse_dat_file(os.path.join(data_loc , "segmentation_data.dat"))
@@ -743,84 +722,13 @@ def get_vdb_from_dir(data_loc: str, weights_loc: str, kernel_size: int, padding:
     segments = [np.asarray(prediction[i], dtype=np.float32) for i in range(prediction.shape[0])]
     cppIOexcavator.save_segments_to_binary(os.path.join(data_loc, 'predicted_segments.bin'), segments)
 
-def draw_voxel_input_slice_from_dir(
-    data_loc: str,
-    kernel_size: int,
-    padding: int,
-    slice_axis: int = 2,
-    slice_index: int = None,
-    cmap: str = 'viridis'  # Or 'gray', 'plasma', etc
-):
-    # 1. LOAD DATA
-    data_arrays = cppIOexcavator.load_segments_from_binary(
-        os.path.join(data_loc, "segmentation_data_segments.bin")
-    )
-    seg_info = cppIOexcavator.parse_dat_file(
-        os.path.join(data_loc, "segmentation_data.dat")
-    )
-
-    # Convert to float numpy array if not already
-    data_arrays = np.array(data_arrays, dtype=np.float32)
-
-    # 2. Assemble full input grid
-    origins = seg_info["ORIGIN_CONTAINER"]["data"]
-    origins_array = np.asarray(origins)
-    bottom_coord = np.min(origins_array, axis=0)
-    top_coord = np.max(origins_array + kernel_size - 1, axis=0)
-    offsets = [np.array([0, 0, 0]) - bottom_coord + origin for origin in origins]
-    dim_vec = top_coord - bottom_coord
-
-
-    full_input_grid = np.full(
-        shape=(int(dim_vec[0]), int(dim_vec[1]), int(dim_vec[2])),
-        fill_value=1,
-        dtype=np.float32
-    )
-
-
-    for g_index in range(data_arrays.shape[0]):
-        grid = data_arrays[g_index, :]
-        offset = offsets[g_index]
-        for x in range(int(padding * 0.5), kernel_size - int(padding * 0.5)):
-            for y in range(int(padding * 0.5), kernel_size - int(padding * 0.5)):
-                for z in range(int(padding * 0.5), kernel_size - int(padding * 0.5)):
-                    full_input_grid[
-                        int(offset[0]) + x,
-                        int(offset[1]) + y,
-                        int(offset[2]) + z
-                    ] = grid[x, y, z]
-
-    # 3. Select slice
-    if slice_index is None:
-        slice_index = full_input_grid.shape[slice_axis] // 2  # center by default
-
-    if slice_axis == 0:
-        img = full_input_grid[slice_index, :, :]
-    elif slice_axis == 1:
-        img = full_input_grid[:, slice_index, :]
-    elif slice_axis == 2:
-        img = full_input_grid[:, :, slice_index]
-    else:
-        raise ValueError("slice_axis must be 0, 1, or 2")
-
-    # 4. Plot
-    plt.figure(figsize=(8, 8))
-    im = plt.imshow(img, cmap=cmap, origin='lower')
-    plt.colorbar(im, fraction=0.046, pad=0.04, label="Input Float Value")
-    plt.title(f"Input values slice (axis={slice_axis}, index={slice_index})")
-    plt.axis('off')
-    plt.tight_layout()
-    plt.show()
-
 def main():
     #Todo draw .obj from label via pyvista
 
-    data_loc=r"H:\ws_label_test\label\00013045"
-    weights_loc=r"H:\ws_hpc_workloads\hpc_models\Balanced20k_Edge32_LRE-05\Balanced20k_Edge32_LRE-05_save_10.pth"
+    data_loc=r"H:\ws_label_test\target\00013045"
+    weights_loc=r"H:\ws_hpc_workloads\hpc_models\Balanced20k_Edge32_LRE-04\Balanced20k_Edge32_LRE-04_save_10.pth"
 
-    #visu_voxel_on_dir(data_loc, weights_loc, 32, 8, 9)
-    #data_loc = r"H:\ws_label_test\label\00035328"
-    visu_cpp_label_on_dir(data_loc, 32,  0)
+    visu_voxel_on_dir(data_loc, weights_loc, 32, 8, 9)
 
 if __name__=="__main__":
     main()

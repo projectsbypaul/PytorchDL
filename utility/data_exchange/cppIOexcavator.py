@@ -470,7 +470,7 @@ def _save_arrays_to_binary(
         # cast to target dtype and ensure C-contiguous, little-endian
         ac = np.ascontiguousarray(arr.astype(target_dtype, copy=False))
         if ac.dtype.byteorder not in ('<', '|'):
-            ac = ac.byteswap().newbyteorder('<')
+            ac = ac.byteswap().view(ac.dtype.newbyteorder('<'))
         d0, d1, d2 = map(int, ac.shape)
         for d, name in zip((d0, d1, d2), ('d0', 'd1', 'd2')):
             if d < 0 or d > 0xFFFFFFFF:
