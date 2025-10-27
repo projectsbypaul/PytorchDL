@@ -18,9 +18,9 @@ class ConvBlock3D(nn.Module):
         return self.block(x)
 
 class UNet3D_16EL(nn.Module):
-    def __init__(self, in_channels=1, out_channels=7):
+    def __init__(self, in_channels=1, out_channels=7, apply_softmax = False):
         super().__init__()
-
+        self.apply_softmax = apply_softmax
         # Encoder (16³ -> 8³)
         self.encoder1 = ConvBlock3D(in_channels, 64)
         self.pool1 = nn.MaxPool3d(2)  # -> 64 × 8³
@@ -44,8 +44,8 @@ class UNet3D_16EL(nn.Module):
         up1 = self.upconv1(bottleneck)        # -> 64 × 16³
         dec1 = self.decoder1(torch.cat((up1, enc1), dim=1))  # -> 64 × 16³
 
-        out = self.final_conv(dec1)           # -> 7 × 16³
-        return out
+        logits = self.final_conv(dec1)           # -> 7 × 16³
+        return F.softmax(logits, dim=1) if self.apply_softmax else logits
 
 class ConvBNReLU3D(nn.Module):
     """Conv3d → BatchNorm3d → LeakyReLU"""

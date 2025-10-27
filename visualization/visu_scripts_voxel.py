@@ -304,7 +304,7 @@ def main():
     n_classes = 9
     ks = 32
     pd = 0
-    visu_voxel_label_and_prediction(data_loc, weights_loc, model_type, template, ks, pd, n_classes)
+    #visu_voxel_label_and_prediction(data_loc, weights_loc, model_type, template, ks, pd, n_classes)
     #visu_voxel_prediction_on_dir(data_loc, weights_loc, model_type,template, ks, pd, n_classes)
     #visu_voxel_label_on_dir(data_loc, ks, pd, template, n_classes)
 

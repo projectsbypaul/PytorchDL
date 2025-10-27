@@ -4,7 +4,7 @@ from utility.data_exchange import cppIOexcavator
 import numpy as np
 import os
 
-def __predict_in_batches(model, data, batch_size, device, use_amp=True, dtype=torch.float16):
+def __predict_in_batches(model, data, batch_size, device, use_amp=True, dtype=torch.float16, apply_softmax = False):
     model.eval()
     preds = []
     with torch.inference_mode():
@@ -21,8 +21,12 @@ def __predict_in_batches(model, data, batch_size, device, use_amp=True, dtype=to
                 out = model(batch)
 
             # argmax across class dim=1 (typical for segmentation/classification)
-            pred = out.argmax(dim=1).cpu().numpy()
-            preds.append(pred)
+            if not apply_softmax:
+                pred = out.argmax(dim=1).cpu().numpy()
+                preds.append(pred)
+            else:
+                pred = out.max(dim=1).values.cpu().numpy()
+                preds.append(pred)
 
             # free up GPU ASAP
             del out, batch
@@ -30,7 +34,7 @@ def __predict_in_batches(model, data, batch_size, device, use_amp=True, dtype=to
 
     return np.concatenate(preds, axis=0)
 
-def __run_prediction_on_dir(data_loc: str, weights_loc: str, n_classes: int, model_type:str = "UNet_Hilbig"):
+def __run_prediction_on_dir(data_loc: str, weights_loc: str, n_classes: int, model_type:str = "UNet_Hilbig", apply_softmax: bool = False):
 
     # -----------------------------
     # 1) Load segments + metadata
@@ -53,9 +57,9 @@ def __run_prediction_on_dir(data_loc: str, weights_loc: str, n_classes: int, mod
 
 
     if model_type == "UNet_Hilbig":
-        model = UNet_Hilbig(in_channels=1, out_channels=n_classes)
+        model = UNet_Hilbig(in_channels=1, out_channels=n_classes, apply_softmax=apply_softmax)
     elif model_type == "UNet_16EL":
-        model = UNet3D_16EL(in_channels=1, out_channels=n_classes)
+        model = UNet3D_16EL(in_channels=1, out_channels=n_classes, apply_softmax=apply_softmax)
     else:
         raise NotImplementedError(f"Model type '{model_type}' not implemented")
 
@@ -67,7 +71,7 @@ def __run_prediction_on_dir(data_loc: str, weights_loc: str, n_classes: int, mod
     print("model predicting outputs...")
     device = torch.device("cuda", 0)
     batch_size = 4  # start tiny, then increase if it fits
-    prediction = __predict_in_batches(model, model_input, batch_size, device, use_amp=True, dtype=torch.bfloat16)
+    prediction = __predict_in_batches(model, model_input, batch_size, device, use_amp=True, dtype=torch.bfloat16, apply_softmax=apply_softmax)
 
     # -----------------------------
     # 3) Save predictions
