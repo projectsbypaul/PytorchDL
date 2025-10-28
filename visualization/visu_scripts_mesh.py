@@ -11,6 +11,29 @@ from pyvistaqt import BackgroundPlotter
 from qtpy import QtWidgets
 import sys
 
+def visu_mesh_input_on_dir(obj_loc: str, render: bool = True):
+
+    print("Loading input mesh:", obj_loc)
+    mesh = pv.read(obj_loc)
+
+    if render:
+        print("PyVista version:", pv.__version__)
+        p = pv.Plotter()
+        p.add_mesh(
+            mesh,
+            color="lightgray",
+            smooth_shading=True,
+            show_edges=True,
+            edge_color="black",
+            line_width=0.5,
+            edge_opacity=0.5
+        )
+        p.add_text("Input Mesh", font_size=10)
+        p.enable_eye_dome_lighting()
+        p.show()
+    else:
+        return mesh
+
 def visu_mesh_prediction_on_dir(data_loc: str, weights_loc: str, obj_loc: str, model_type: str, class_template: str,   kernel_size: int, padding: int, n_classes: int,
                       stride: int = 1, surface_only: bool = False, render=True):
     # -----------------------------
@@ -299,6 +322,7 @@ def main():
 
     # visu_mesh_prediction_on_dir(data_loc, weights_loc, obj_loc, model_type,template, ks, pd, n_classes)
     # visu_mesh_label_on_dir(data_loc, obj_loc, template, ks, pd, n_classes)
+    visu_mesh_input_on_dir(obj_loc, render=True)
     visu_mesh_label_and_prediction(data_loc, weights_loc, obj_loc, model_type, template, ks, pd, n_classes)
 
 

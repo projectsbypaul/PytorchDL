@@ -35,7 +35,7 @@ def visu_voxel_prediction_on_dir(data_loc: str, weights_loc: str, model_type: st
     # 3) Assemble full label grid
     # -----------------------------
     origins = seg_info["ORIGIN_CONTAINER"]["data"]  # list of (x,y,z)
-
+    vs = seg_info["SCALARS"]["voxel_size"]
     # Color/opacity template
     if class_template == "inside_outside":
         color_temp = color_templates.inside_outside_color_template_abc()
@@ -103,10 +103,11 @@ def visu_voxel_prediction_on_dir(data_loc: str, weights_loc: str, model_type: st
     # 6) Glyph render (one actor)
     # -----------------------------
     points = coords.astype(np.float32)   # voxel centers at integer coords
+    points = [tpl*vs for tpl in points]
     cloud  = pv.PolyData(points)
     cloud['rgba'] = colors_rgba
 
-    cube   = pv.Cube(center=(0, 0, 0), x_length=1.0, y_length=1.0, z_length=1.0)
+    cube   = pv.Cube(center=(0, 0, 0), x_length=1.0*vs, y_length=1.0*vs, z_length=1.0*vs)
     glyphs = cloud.glyph(geom=cube, scale=False, orient=False)
 
     if render:
@@ -149,7 +150,7 @@ def visu_voxel_label_on_dir(data_loc: str, kernel_size: int, padding: int, class
 
         # 3) Assemble full label grid
         origins = seg_info["ORIGIN_CONTAINER"]["data"]  # should be (N, 3)
-
+        vs = seg_info["SCALARS"]["voxel_size"]
         # Color/opacity template
         if class_template == "inside_outside":
             color_temp = color_templates.inside_outside_color_template_abc()
@@ -213,10 +214,11 @@ def visu_voxel_label_on_dir(data_loc: str, kernel_size: int, padding: int, class
         # 6) Glyph render (one actor)
         # -----------------------------
         points = coords.astype(np.float32)   # voxel centers at integer coords
+        points = [tpl*vs for tpl in points]
         cloud  = pv.PolyData(points)
         cloud['rgba'] = colors_rgba
-
-        cube   = pv.Cube(center=(0, 0, 0), x_length=1.0, y_length=1.0, z_length=1.0)
+        vs = seg_info["SCALARS"]["voxel_size"]
+        cube   = pv.Cube(center=(0, 0, 0), x_length=1.0*vs, y_length=1.0*vs, z_length=1.0*vs)
         glyphs = cloud.glyph(geom=cube, scale=False, orient=False)
 
         if render:
@@ -297,15 +299,15 @@ def visu_voxel_label_and_prediction(data_loc, weights_loc, model_type, class_tem
 
 
 def main():
-    data_loc = r"H:\ws_label_test\label\00013045"
-    weights_loc = r"H:\ws_hpc_workloads\hpc_models\Balanced20k_Edge32_LRE-05\Balanced20k_Edge32_LRE-05_save_10.pth"
+    data_loc = r"H:\ws_seg_vdb\output_adaptive"
+    weights_loc = r"H:\ws_hpc_workloads\hpc_models\Balanced20k_Edge32_LRE-04\Balanced20k_Edge32_LRE-04_save_10.pth"
     template = "edge"
     model_type = "UNet_Hilbig"
     n_classes = 9
     ks = 32
-    pd = 0
+    pd = 8
     #visu_voxel_label_and_prediction(data_loc, weights_loc, model_type, template, ks, pd, n_classes)
-    #visu_voxel_prediction_on_dir(data_loc, weights_loc, model_type,template, ks, pd, n_classes)
+    visu_voxel_prediction_on_dir(data_loc, weights_loc, model_type,template, ks, pd, n_classes)
     #visu_voxel_label_on_dir(data_loc, ks, pd, template, n_classes)
 
 
