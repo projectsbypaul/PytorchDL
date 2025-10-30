@@ -10,6 +10,109 @@ from visualization import visu_helpers
 from pyvistaqt import BackgroundPlotter
 from qtpy import QtWidgets
 import sys
+import h5py
+
+def visu_voxel_prediction_from_h5(h5_file: str, class_template: str,   kernel_size: int, padding: int, n_classes: int,
+                      stride: int = 1, surface_only=True, render=True):
+
+    with h5py.File(h5_file, "r") as f:
+        full_grid = f["flat_predictions"][:]  # read entire dataset into memory
+
+    if class_template == "inside_outside":
+        color_temp = color_templates.inside_outside_color_template_abc()
+    elif class_template == "edge":
+        color_temp = color_templates.edge_color_template_abc()
+    else:
+        raise NotImplementedError(f"Class Template '{class_template}' not implemented")
+
+    class_list = color_templates.get_class_list(color_temp)  # ordered names -> indices
+    custom_colors = color_templates.get_color_dict(color_temp)  # {name: (R,G,B)}
+    custom_opacity = color_templates.get_opacity_dict(color_temp)  # {name: alpha}
+    class_to_idx = color_templates.get_class_to_index_dict(color_temp)
+
+    print("assembling model outputs...")
+    fill_idx = class_to_idx["Outside"]
+
+    # -----------------------------
+    # 4) Build draw set: non-Inside/Outside voxels
+    # -----------------------------
+    labels = full_grid.astype(np.int32, copy=False)
+
+    hidden = {'Outside'}
+    visible_class_mask = np.array([name not in hidden for name in class_list], dtype=bool)
+    keep = visible_class_mask[labels]  # True where voxel should be drawn
+
+    if not np.any(keep):
+        print("No voxels to render (all are Inside/Outside).")
+        return
+
+    if surface_only:
+        # Keep only boundary voxels of the visible set (optional toggle)
+        vm = keep
+        pad = np.pad(vm, 1, constant_values=False)
+        fully_surrounded = (
+                pad[2:, 1:-1, 1:-1] & pad[:-2, 1:-1, 1:-1] &
+                pad[1:-1, 2:, 1:-1] & pad[1:-1, :-2, 1:-1] &
+                pad[1:-1, 1:-1, 2:] & pad[1:-1, 1:-1, :-2]
+        )
+        keep = vm & ~fully_surrounded
+        if not np.any(keep):
+            print("No surface voxels remain after filtering.")
+            return
+
+    coords = np.argwhere(keep)  # (K, 3)
+    kept_labels = labels[keep]
+
+    if stride > 1:
+        coords = coords[::stride]
+        kept_labels = kept_labels[::stride]
+
+    # -----------------------------
+    # 5) Colors (per-voxel RGBA, uint8)
+    # -----------------------------
+    lut_rgba = np.zeros((len(class_list), 4), dtype=np.uint8)
+    for idx, name in enumerate(class_list):
+        r, g, b = custom_colors[name]
+        a = 0.0 if name in hidden else float(custom_opacity.get(name, 1.0))
+        lut_rgba[idx] = (r, g, b, int(round(a * 255)))
+
+    colors_rgba = lut_rgba[kept_labels]  # (K, 4) uint8
+
+    # -----------------------------
+    # 6) Glyph render (one actor)
+    # -----------------------------
+    points = coords.astype(np.float32)  # voxel centers at integer coords
+    # points = [tpl * vs for tpl in points]
+    cloud = pv.PolyData(points)
+    cloud['rgba'] = colors_rgba
+
+    cube = pv.Cube(center=(0, 0, 0), x_length=1.0, y_length=1.0, z_length=1.0)
+    glyphs = cloud.glyph(geom=cube, scale=False, orient=False)
+
+    if render:
+        print("PyVista version:", pv.__version__)
+        p = pv.Plotter()
+        p.add_mesh(
+            glyphs,
+            scalars='rgba',
+            rgba=True,
+            lighting=False,  # flat label colors
+            culling='back',  # reduce overdraw
+            show_edges=False,
+            render_lines_as_tubes=False,
+        )
+        p.enable_eye_dome_lighting()
+
+        # Legend for visible classes only
+        legend_entries = [[name, tuple(c / 255 for c in custom_colors[name])]
+                          for name in class_list if name not in hidden]
+        if legend_entries:
+            p.add_legend(legend_entries, bcolor='white', face='circle',
+                         size=(0.2, 0.25), loc='lower right')
+
+        p.show()
+    else:
+        return glyphs, class_list, custom_colors
 
 def visu_voxel_prediction_on_dir(data_loc: str, weights_loc: str, model_type: str, class_template: str,   kernel_size: int, padding: int, n_classes: int,
                       stride: int = 1, surface_only: bool = False, render=True):
@@ -301,14 +404,16 @@ def visu_voxel_label_and_prediction(data_loc, weights_loc, model_type, class_tem
 def main():
     data_loc = r"H:\ws_seg_vdb\output_adaptive"
     weights_loc = r"H:\ws_hpc_workloads\hpc_models\Balanced20k_Edge32_LRE-04\Balanced20k_Edge32_LRE-04_save_10.pth"
+    h5_path = r"H:\ws_seg_vdb\vdb_cyl_test\int_grid_predictions.h5"
     template = "edge"
     model_type = "UNet_Hilbig"
     n_classes = 9
     ks = 32
     pd = 8
     #visu_voxel_label_and_prediction(data_loc, weights_loc, model_type, template, ks, pd, n_classes)
-    visu_voxel_prediction_on_dir(data_loc, weights_loc, model_type,template, ks, pd, n_classes)
+    #visu_voxel_prediction_on_dir(data_loc, weights_loc, model_type,template, ks, pd, n_classes)
     #visu_voxel_label_on_dir(data_loc, ks, pd, template, n_classes)
+    visu_voxel_prediction_from_h5(h5_path, template, ks, pd, n_classes)
 
 
 if __name__=="__main__":

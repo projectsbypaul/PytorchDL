@@ -6,6 +6,75 @@ from visualization import visu_helpers
 from utility.data_exchange import cppIOexcavator
 import numpy as np
 import os
+import h5py
+
+def test_cpp_py_array_matches(data_loc: str, weights_loc: str, n_classes: int, model_type:str = "UNet_Hilbig"):
+
+    # -----------------------------
+    # 1) Load segments + metadata
+    # -----------------------------
+    data_arrays = cppIOexcavator.load_segments_from_binary(
+        os.path.join(data_loc, "segmentation_data_segments.bin")
+    )
+
+    seg_info = cppIOexcavator.parse_dat_file(os.path.join(data_loc, "segmentation_data.dat"))
+
+    origin = seg_info["ORIGIN_CONTAINER"]["data"]
+
+    predictions_h5_pth = os.path.join(data_loc, "segmentation_data_predictions.h5")
+    h5_cpp_path = os.path.join(data_loc, "int_grid_predictions.h5")
+
+    # Model input: (N,1,ks,ks,ks)
+    model_input = torch.tensor(np.array(data_arrays)).unsqueeze(1)
+
+    # -----------------------------
+    # 2) Load model + predict
+    # -----------------------------
+    print("Evaluating Model")
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    print("Using device:", device)
+
+    if model_type == "UNet_Hilbig":
+        model = UNet_Hilbig(in_channels=1, out_channels=n_classes)
+    elif model_type == "UNet_16EL":
+        model = UNet3D_16EL(in_channels=1, out_channels=n_classes)
+    else:
+        raise NotImplementedError(f"Model type '{model_type}' not implemented")
+
+    state_dict = torch.load(weights_loc, map_location='cpu')
+    model.load_state_dict(state_dict)
+    model.to(device)
+    model.eval()
+
+    print("model predicting outputs...")
+    device = torch.device("cuda", 0)
+    batch_size = 4  # start tiny, then increase if it fits
+    prediction = visu_helpers.__predict_in_batches(
+        model, model_input, batch_size, device, use_amp=True, dtype=torch.bfloat16)
+
+    grid_py = visu_helpers.__assemble_grids_by_origin(prediction, origin, 32, 8, 9)
+
+    with h5py.File(h5_cpp_path, "r") as f:
+        grid_cpp = f["flat_predictions"][:]  # read entire dataset into memory
+
+    print("Shape:", grid_cpp.shape)
+    print("Dtype:", grid_cpp.dtype)
+
+    if grid_cpp.shape == grid_py.shape:
+        print("cpp and py shapes matching")
+        count_match = 0
+        count_diff = 0
+        shape = grid_cpp.shape
+        for i in range(shape[0]):
+            for j in range(shape[1]):
+                for k in range(shape[2]):
+                    if grid_cpp[i][j][k] == grid_py[i][j][k]:
+                        count_match += 1
+                    else:
+                        count_diff += 1
+
+        print(f"Compared Array: matches={count_match} diff={count_diff}")
+
 
 def visu_mesh_model_on_dir(data_loc : str,weights_loc : str, save_loc : str, kernel_size : int, padding : int, n_classes):
     # parameters
@@ -110,7 +179,11 @@ def run_prediction_on_dir(data_loc: str, weights_loc: str, n_classes: int, model
         os.path.join(data_loc, "segmentation_data_segments.bin")
     )
 
-    predictions_bin_pth = os.path.join(data_loc, "segmentation_data_predictions.bin")
+    seg_info = cppIOexcavator.parse_dat_file(os.path.join(data_loc, "segmentation_data.dat"))
+
+    origin = seg_info["ORIGIN_CONTAINER"]["data"]
+
+    predictions_h5_pth = os.path.join(data_loc, "segmentation_data_predictions.h5")
 
     # Model input: (N,1,ks,ks,ks)
     model_input = torch.tensor(np.array(data_arrays)).unsqueeze(1)
@@ -142,29 +215,20 @@ def run_prediction_on_dir(data_loc: str, weights_loc: str, n_classes: int, model
     prediction = visu_helpers.__predict_in_batches(
         model, model_input, batch_size, device, use_amp=True, dtype=torch.bfloat16)
 
-
     # -----------------------------
     # 3) Save predictions
     # -----------------------------
-    print(f"Saving model predictions to {predictions_bin_pth}")
-    print(prediction.dtype)
-    prediction = prediction.astype(np.int32)
-    print(prediction.dtype)
-    print(prediction.shape)
-    prediction_list = [prediction[i] for i in range(prediction.shape[0])]
-    print(prediction_list[0].shape)  # → (32, 32, 32)
-    print(prediction_list[0].dtype)  # → int32
-    cppIOexcavator.save_predictions(predictions_bin_pth, prediction)
+    print(f"Saving model predictions to {predictions_h5_pth}")
+
+    with h5py.File(predictions_h5_pth, "w") as f:
+        f.create_dataset("predictions", data=prediction, dtype="i4")
 
 def main():
-    data_loc = r"H:\ws_seg_vdb\output_adaptive"
+    data_loc = r"H:\ws_seg_vdb\output_vdb"
     weights_loc = r"H:\ws_hpc_workloads\hpc_models\Balanced20k_Edge32_LRE-04\Balanced20k_Edge32_LRE-04_save_10.pth"
     n_classes = 9
     model_type = "UNet_Hilbig"
-    arr = np.arange(10, dtype=np.int32)
-    arr.tofile(os.path.join(data_loc,"test.bin"))
     run_prediction_on_dir(data_loc, weights_loc, n_classes, model_type)
-
 
 
 if __name__=="__main__":
