@@ -13,8 +13,8 @@ import shutil
 
 def main():
 
-    gzipped_h5 = r"H:\ws_export\ABC_InOut_ks32swo4nbw8nk3_crp50000.h5.gz"
-    template = "inside_outside"
+    gzipped_h5 = r"H:\ws_abc_labelling\export\ABC_chunk_01_ks32swo4nbw8nk3_20250929-101945\ABC_chunk_01_ks32swo4nbw8nk3_20250929-101945_results.h5.gz"
+    class_template = "edge"
 
     h5_name = os.path.basename(gzipped_h5).split('.')[0]
     workspace = os.path.dirname(gzipped_h5)
@@ -34,7 +34,7 @@ def main():
     with open(stat_bin, "rb") as f:
         h5_voxel_count = pickle.load(f)
 
-    hdf5_utility.get_class_distribution(stat_bin)
+    hdf5_utility.get_class_distribution(stat_bin, class_template=class_template)
 
     class_count = np.sum(h5_voxel_count, axis=0)
 

@@ -89,11 +89,11 @@ def __crop_gzipped_dataset(gzipped_dataset, unpack_dir, stats_dir, cropped_dir, 
 
 
 def main():
-    n_samples = 10000
+    n_samples = 20000
     template = "edge"
     ignore_index = [7,8]
     search_str = "h5.gz"
-    h5_out_name = f"ABC_InOut_ks32swo4nbw8nk3_crp{n_samples}"
+    h5_out_name = f"ABC_Edge_ks32swo4nbw8nk3_crp{n_samples}"
     target_dir = r"H:\ws_abc_labelling\export"
 
     workspace  =  rf"H:\ws_{h5_out_name}"
@@ -106,7 +106,7 @@ def main():
     config_logger.init_log(log_file, capture_print=True)
 
     gzipped_dataset = __find_gzipped_datasets(target_dir, search_str)
-    logging.info(f"Found {gzipped_dataset.__len__()} entries containing {search_str}")
+    logging.info(f"Found {gzipped_dataset.__len__()} entries containing '{search_str}'")
 
     unpack_dir, cropped_dir, stats_dir = __setup_workspace(workspace)
 
@@ -115,7 +115,7 @@ def main():
     for dataset in gzipped_dataset:
 
         logging.info(f"Start cropping by class of {dataset} to {n_samples} samples per class)")
-        logging.info(f"Using template {template}, ignoring classes {ignore_index}")
+        logging.info(f"Using template '{template}', ignoring classes {ignore_index}")
 
         h5_cropped_pth = __crop_gzipped_dataset(
             dataset, unpack_dir, stats_dir, cropped_dir, n_samples, template, ignore_index)

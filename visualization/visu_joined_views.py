@@ -113,12 +113,12 @@ def visu_input_prediction_mesh(data_loc, weights_loc, obj_loc, model_type, class
 def main():
     data_loc = r"H:\ws_label_test\label\00013045"
     obj_loc = r"H:\ws_label_test\source\00013045\00013045.obj"
-    weights_loc = r"H:\ws_hpc_workloads\hpc_models\Balanced20k_Edge32_LRE-04\Balanced20k_Edge32_LRE-04_save_10.pth"
-    template = "edge"
+    weights_loc = r"H:\ws_hpc_workloads\hpc_models\fcb_InOut_01_UNet3D_Hilbig_crp10000\fcb_InOut_01_UNet3D_Hilbig_crp10000_save_90.pth"
+    template = "inside_outside"
     model_type = "UNet_Hilbig"
-    n_classes = 9
+    n_classes = 8
     ks = 32
-    pd = 0
+    pd = 4
 
     # visu_mesh_prediction_on_dir(data_loc, weights_loc, obj_loc, model_type,template, ks, pd, n_classes)
     # visu_mesh_label_on_dir(data_loc, obj_loc, template, ks, pd, n_classes)

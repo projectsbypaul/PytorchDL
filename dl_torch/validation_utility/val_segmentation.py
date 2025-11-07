@@ -274,6 +274,7 @@ def validate_segmentation_model(
         template_list = {
             "default": 0,
             "inside_outside": 1,
+            "edge": 2
         }
         # color/classes template (your chosen template)
         match template_list[template]:
@@ -281,6 +282,8 @@ def validate_segmentation_model(
                 color_temp = color_templates.inside_outside_color_template_abc()
             case 1:
                 color_temp = color_templates.inside_outside_color_template_abc()
+            case 2:
+                color_temp = color_templates.edge_color_template_abc()
 
         class_to_index = color_templates.get_class_to_index_dict(color_temp)
 
@@ -305,7 +308,7 @@ def validate_segmentation_model(
                 if len(oob_face_examples) < MAX_OOB_LOG:
                     oob_face_examples.append((face_idx, tuple(map(int, face_idx_arr.tolist())),
                                               (gx, gy, gz), tuple(full_grid.shape)))
-                face_class_index = 7  # fallback to outside
+                face_class_index = class_to_index["Outside"]  # fallback to outside
 
             ftm_prediction.append(face_class_index)
 
