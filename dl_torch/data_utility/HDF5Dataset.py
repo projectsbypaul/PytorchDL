@@ -408,11 +408,11 @@ class HDF5Dataset(Dataset):
             raise RuntimeError(f"Mismatched file counts: segments={len(seg_paths)} labels={len(lab_paths)}")
 
         # --------- pre-audit & filter bad paths ----------
-        good_seg_paths = []
-        good_lab_paths = []
+        print(f"[INFO] Auditing .bin file pairs")
 
         good_seg_paths = []
         good_lab_paths = []
+        audit_failed_count = 0
 
         for sp, lp in zip(seg_paths, lab_paths):
             parent = os.path.basename(os.path.dirname(sp))
@@ -421,24 +421,29 @@ class HDF5Dataset(Dataset):
 
             if seg is None or lab is None:
                 print(f"[WARN] skipping {parent}: corrupted or unreadable .bin file")
+                audit_failed_count+=1
                 continue
 
             # count mismatch = bad too
             if seg.shape[0] != lab.shape[0]:
                 print(f"[WARN] skipping {parent}: sample count mismatch {seg.shape[0]} vs {lab.shape[0]}")
+                audit_failed_count += 1
                 continue
 
             # per-sample shape mismatch = bad
             if seg.shape[1:] != lab.shape[1:]:
                 print(f"[WARN] skipping {parent}: per-sample shape mismatch {seg.shape[1:]} vs {lab.shape[1:]}")
+                audit_failed_count += 1
                 continue
 
             # valid → keep for processing
             good_seg_paths.append(sp)
             good_lab_paths.append(lp)
 
-        if not seg_paths:
+        if not good_seg_paths:
             raise RuntimeError("No valid .bin pairs found after audit.")
+
+        print(f"[INFO] Auditing .bin file pairs: {audit_failed_count} pairs failed audit")
 
         # --------- pass 1: scan ----------
         file_counts: list[int] = []
@@ -508,7 +513,7 @@ class HDF5Dataset(Dataset):
             write_offset = 0
             written = 0
 
-            for (sp, lp), Ni in zip(zip(seg_paths, lab_paths), file_counts):
+            for (sp, lp), Ni in zip(zip(good_seg_paths, good_lab_paths), file_counts):
                 parent = os.path.dirname(sp)
                 parent_name = os.path.basename(parent)
 
@@ -758,7 +763,7 @@ def main():
     '''
 
     bin_dir = r"H:\ws_label_test\label"
-    hdf5_out = r"H:\ws_label_test\label_test_8f0.h5"
+    hdf5_out = r"H:\ws_label_test\label_test_3f0.h5"
     HDF5Dataset.convert_bin_tree_to_hdf5(bin_dir, hdf5_out)
 
 
