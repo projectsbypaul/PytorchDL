@@ -321,13 +321,13 @@ def plot_default_line_charts():
 
 def main():
 
-    stats_file = r"H:\ws_hpc_workloads\hpc_val\TEST_INOUT\TEST_INOUT_Balance_Test_02_UNet3D_Hilbig_mfcb_EP50_val_result_mcm.bin"
+    stats_file = r"H:\ws_hpc_workloads\hpc_val\VAL_FCB\VAL_FCB_fcb_InOut_01_UNet3D_Hilbig_crp10000_EP50_val_result_mcm.bin"
     template = color_templates.inside_outside_color_template_abc()
     __plot_confusion_matrix(stats_file, template)
 
 
 
-    result_file = r"H:\ws_hpc_workloads\hpc_val\TEST_INOUT\TEST_INOUT_Balance_Test_02_UNet3D_Hilbig_mfcb_EP50_val_result.bin"
+    result_file = r"H:\ws_hpc_workloads\hpc_val\VAL_FCB\VAL_FCB_fcb_InOut_01_UNet3D_Hilbig_crp10000_EP50_val_result.bin"
     __histogramm_segmentation_samples(result_file)
 
 

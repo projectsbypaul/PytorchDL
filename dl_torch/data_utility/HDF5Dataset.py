@@ -355,6 +355,23 @@ class HDF5Dataset(Dataset):
 
         return data_files, label_files
 
+    @staticmethod
+    def __safe_load_array(loader, path: str):
+        """
+        Wrap cppIOexcavator loaders. Returns ndarray on success, or None on failure.
+        """
+        try:
+            arr = loader(path)
+            arr = np.asarray(arr)
+        except Exception as e:
+            print(f"[WARN] {path}: {e}")
+            return None
+
+        # must be 4D: (N, D, H, W)
+        if arr is None or not isinstance(arr, np.ndarray) or arr.ndim != 4:
+            print(f"[WARN] {path}: invalid array returned (ndim={getattr(arr, 'ndim', None)})")
+            return None
+        return arr
 
     @staticmethod
     def convert_bin_tree_to_hdf5(
@@ -390,13 +407,46 @@ class HDF5Dataset(Dataset):
         if len(seg_paths) != len(lab_paths):
             raise RuntimeError(f"Mismatched file counts: segments={len(seg_paths)} labels={len(lab_paths)}")
 
+        # --------- pre-audit & filter bad paths ----------
+        good_seg_paths = []
+        good_lab_paths = []
+
+        good_seg_paths = []
+        good_lab_paths = []
+
+        for sp, lp in zip(seg_paths, lab_paths):
+            parent = os.path.basename(os.path.dirname(sp))
+            seg = HDF5Dataset.__safe_load_array(cppIOexcavator.load_segments_from_binary, sp)
+            lab = HDF5Dataset.__safe_load_array(cppIOexcavator.load_labels_from_binary, lp)
+
+            if seg is None or lab is None:
+                print(f"[WARN] skipping {parent}: corrupted or unreadable .bin file")
+                continue
+
+            # count mismatch = bad too
+            if seg.shape[0] != lab.shape[0]:
+                print(f"[WARN] skipping {parent}: sample count mismatch {seg.shape[0]} vs {lab.shape[0]}")
+                continue
+
+            # per-sample shape mismatch = bad
+            if seg.shape[1:] != lab.shape[1:]:
+                print(f"[WARN] skipping {parent}: per-sample shape mismatch {seg.shape[1:]} vs {lab.shape[1:]}")
+                continue
+
+            # valid → keep for processing
+            good_seg_paths.append(sp)
+            good_lab_paths.append(lp)
+
+        if not seg_paths:
+            raise RuntimeError("No valid .bin pairs found after audit.")
+
         # --------- pass 1: scan ----------
         file_counts: list[int] = []
         total_samples = 0
         base_feat_shape: Optional[Tuple[int, ...]] = None  # shape WITHOUT channel axis
         label_shape: Optional[Tuple[int, ...]] = None
 
-        for sp, lp in zip(seg_paths, lab_paths):
+        for sp, lp in zip(good_seg_paths, good_lab_paths):
             seg_arr = np.asarray(cppIOexcavator.load_segments_from_binary(sp))  # (Ni, *feat)
             lab_arr = np.asarray(cppIOexcavator.load_labels_from_binary(lp))  # (Ni, *lab)
 
@@ -698,13 +748,18 @@ def main():
     HDF5Dataset.print_file_info(test_h5)
     '''
 
+    '''
     h5_a=r"H:\ws_abc_labelling\export\ABC_ks32swo4nbw8nk3_edge\cropped_ABC_chunk_06_ks32swo4nbw8nk3_20250930-082858_dataset\ABC_chunk_06_ks32swo4nbw8nk3_20250930-082858_dataset_crp20000.h5"
     h5_b=r"H:\ws_abc_labelling\export\ABC_ks32swo4nbw8nk3_edge\joined_iter005\joined_iter005.h5"
     h5_ab=r"H:\ws_abc_labelling\export\ABC_ks32swo4nbw8nk3_edge\ABC_ks32swo4nbw8nk3_edge.h5"
 
     HDF5Dataset.join_hdf5_files([h5_a, h5_b],h5_ab)
     HDF5Dataset.print_file_info(h5_ab)
+    '''
 
+    bin_dir = r"H:\ws_label_test\label"
+    hdf5_out = r"H:\ws_label_test\label_test_8f0.h5"
+    HDF5Dataset.convert_bin_tree_to_hdf5(bin_dir, hdf5_out)
 
 
 
