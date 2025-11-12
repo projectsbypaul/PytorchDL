@@ -315,10 +315,11 @@ def get_class_distribution(result_loc, class_template,
 
 def main():
 
-    ds_path = r"H:\ws_label_test\label_test_8f0.h5"
-    result_loc = r"H:\ws_label_test\label_test_8f0_stats.bin"
-    screen_hdf_dataset(ds_path, result_loc, "edge")
-    get_class_distribution(result_loc, "edge")
+    ds_path = r"H:\ws_abc_labelling\export\ABC_chunk_04_ks32swo4nbw8nk3_20250929-183521\ABC_chunk_04_ks32swo4nbw8nk3_20250929-183521_results.h5"
+    result_loc = r"H:\ws_abc_labelling\export\ABC_chunk_04_ks32swo4nbw8nk3_20250929-183521\ABC_chunk_04_ks32swo4nbw8nk3_20250929-183521_results_stats.bin"
+    HDF5Dataset.print_file_info(ds_path)
+    screen_hdf_dataset(ds_path, result_loc, "inside_outside")
+    get_class_distribution(result_loc, "inside_outside")
 
 
 if __name__ == "__main__":

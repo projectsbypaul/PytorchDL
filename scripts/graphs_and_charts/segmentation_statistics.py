@@ -320,19 +320,27 @@ def plot_default_line_charts():
     __line_chart_from_dataframe(df_abc, "EP", "p%")
 
 def main():
-
-    stats_file = r"H:\ws_hpc_workloads\hpc_val\VAL_FCB\VAL_FCB_fcb_InOut_01_UNet3D_Hilbig_crp10000_EP50_val_result_mcm.bin"
+    #mcm
+    stats_file = r"H:\ws_hpc_workloads\hpc_val\SegDemo\SegDemoInOut_32_EP50_val_result_mcm.bin"
     template = color_templates.inside_outside_color_template_abc()
     __plot_confusion_matrix(stats_file, template)
 
+    stats_file = r"H:\ws_hpc_workloads\hpc_val\Balanced20k\Balanced20k_InOut32_EP50_val_result_mcm.bin"
+    template = color_templates.inside_outside_color_template_abc()
+    __plot_confusion_matrix(stats_file, template)
 
+    stats_file = r"H:\ws_hpc_workloads\hpc_val\TEST_INOUT\TEST_INOUT_Balance_Test_03_UNet3D_Hilbig_mfcb_EP50_val_result_mcm.bin"
+    template = color_templates.inside_outside_color_template_abc()
+    __plot_confusion_matrix(stats_file, template)
 
-    result_file = r"H:\ws_hpc_workloads\hpc_val\VAL_FCB\VAL_FCB_fcb_InOut_01_UNet3D_Hilbig_crp10000_EP50_val_result.bin"
+    result_file = r"H:\ws_hpc_workloads\hpc_val\SegDemo\SegDemoInOut_32_EP50_val_result.bin"
     __histogramm_segmentation_samples(result_file)
 
+    result_file = r"H:\ws_hpc_workloads\hpc_val\Balanced20k\Balanced20k_InOut32_EP50_val_result.bin"
+    __histogramm_segmentation_samples(result_file)
 
-
-
+    result_file = r"H:\ws_hpc_workloads\hpc_val\TEST_INOUT\TEST_INOUT_Balance_Test_03_UNet3D_Hilbig_mfcb_EP50_val_result.bin"
+    __histogramm_segmentation_samples(result_file)
 
 if __name__ == "__main__":
     main()

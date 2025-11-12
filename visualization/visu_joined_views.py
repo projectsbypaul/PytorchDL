@@ -47,6 +47,94 @@ def apply_scaled_camera(p, subplot_index, camera_mode="isometric", distance_scal
     p.camera_position = [tuple(eye), tuple(center), up]
     p.camera_set = True
 
+def visu_compared_views_geom(data_locs, weights_loc, model_type, class_template,
+                                    kernel_size, padding, n_classes,
+                                    stride=1, surface_only=False):
+    # Ensure a running QApplication
+    app = QtWidgets.QApplication.instance()
+    if app is None:
+        app = QtWidgets.QApplication(sys.argv)
+
+    # Create PyVistaQt background plotter (tuple for window_size!)
+    p = BackgroundPlotter(shape=(1, len(data_locs)), window_size=(1600, 800))
+
+    ambient = 0.52
+    diffuse = 0.4
+    specular = 0.1
+
+    for i, data_loc in enumerate(data_locs):
+
+        pred_voxel, class_list, custom_colors = visu_voxel_prediction_on_dir(
+            data_loc, weights_loc, model_type, class_template,
+            kernel_size, padding, n_classes,
+            stride=stride, surface_only=surface_only, render=False
+        )
+
+        legend_entries = [
+            [name, tuple(c / 255 for c in custom_colors[name])]
+            for name in class_list if name != 'Outside'
+        ]
+
+        plot_title = os.path.basename(weights_loc).split('.')[0]
+
+        p.subplot(0, i)
+        p.add_mesh(pred_voxel, scalars='rgba', rgba=True, lighting=True, ambient=ambient, diffuse=diffuse,
+                   specular=specular)
+        p.add_text( plot_title, font_size=10)
+        if legend_entries:
+            p.add_legend(legend_entries, bcolor='white', face='circle',
+                         size=(0.2, 0.25), loc='lower right')
+
+
+    p.link_views()
+    app.exec_()
+
+def visu_compared_views_model(data_loc, weights_locs, model_types, class_templates,
+                                    kernel_size, padding, n_classes,
+                                    stride=1, surface_only=False):
+    # Ensure a running QApplication
+    app = QtWidgets.QApplication.instance()
+    if app is None:
+        app = QtWidgets.QApplication(sys.argv)
+
+    # Create PyVistaQt background plotter (tuple for window_size!)
+    p = BackgroundPlotter(shape=(1, len(weights_locs)), window_size=(1600, 800))
+
+    ambient = 0.52
+    diffuse = 0.4
+    specular = 0.1
+
+    for i, weights_loc in enumerate(weights_locs):
+        model_type = model_types[i]
+        class_template = class_templates[i]
+
+        pred_voxel, class_list, custom_colors = visu_voxel_prediction_on_dir(
+            data_loc, weights_loc, model_type, class_template,
+            kernel_size, padding, n_classes,
+            stride=stride, surface_only=surface_only, render=False
+        )
+
+        legend_entries = [
+            [name, tuple(c / 255 for c in custom_colors[name])]
+            for name in class_list if name != 'Outside'
+        ]
+
+        plot_title = os.path.basename(weights_loc).split('.')[0]
+
+        p.subplot(0, i)
+        p.add_mesh(pred_voxel, scalars='rgba', rgba=True, lighting=True, ambient=ambient, diffuse=diffuse,
+                   specular=specular)
+        p.add_text( plot_title, font_size=10)
+        if legend_entries:
+            p.add_legend(legend_entries, bcolor='white', face='circle',
+                         size=(0.2, 0.25), loc='lower right')
+
+
+    p.link_views()
+    app.exec_()
+
+
+
 def visu_input_prediction_mesh(data_loc, weights_loc, obj_loc, model_type, class_template,
                                     kernel_size, padding, n_classes,
                                     stride=1, surface_only=False):
@@ -89,12 +177,7 @@ def visu_input_prediction_mesh(data_loc, weights_loc, obj_loc, model_type, class
     p.add_text("Input Mesh", font_size=10)
 
     # middle subplot — voxel prediction
-    p.subplot(0, 1)
-    p.add_mesh(pred_voxel, scalars='rgba', rgba=True, lighting=True, ambient=ambient, diffuse=diffuse, specular=specular)
-    p.add_text("Prediction Voxel", font_size=10)
-    if legend_entries:
-        p.add_legend(legend_entries, bcolor='white', face='circle',
-                     size=(0.2, 0.25), loc='lower right')
+
 
     # Right subplot — prediction
     p.subplot(0, 2)
@@ -111,6 +194,7 @@ def visu_input_prediction_mesh(data_loc, weights_loc, obj_loc, model_type, class
     app.exec_()
 
 def main():
+    '''
     data_loc = r"H:\ws_label_test\label\00013045"
     obj_loc = r"H:\ws_label_test\source\00013045\00013045.obj"
     weights_loc = r"H:\ws_hpc_workloads\hpc_models\fcb_InOut_01_UNet3D_Hilbig_crp10000\fcb_InOut_01_UNet3D_Hilbig_crp10000_save_90.pth"
@@ -124,9 +208,40 @@ def main():
     # visu_mesh_label_on_dir(data_loc, obj_loc, template, ks, pd, n_classes)
     # visu_mesh_input_on_dir(obj_loc, render=True)
     visu_input_prediction_mesh(data_loc, weights_loc, obj_loc, model_type, template, ks, pd, n_classes)
+    '''
+
+    '''  '''
+    weights_loc_0 = r"H:\ws_hpc_workloads\hpc_models\SegDemoEdge_32\SegDemoEdge_32_save_50.pth"
+    weights_loc_1 = r"H:\ws_hpc_workloads\hpc_models\Balanced20k_Edge32_LRE-05\Balanced20k_Edge32_LRE-05_save_50.pth"
+    weights_loc_2 = r"H:\ws_hpc_workloads\hpc_models\mfcb_Edge_01_UNet3D_Hilbig_crp10000\mfcb_Edge_01_UNet3D_Hilbig_crp10000_save_50.pth"
+
+    templates = ["edge", "edge", "edge"]
+    models = ["UNet_Hilbig", "UNet_Hilbig", "UNet_Hilbig"]
+
+    data_loc = r"H:\ws_seg_test\debug_output\REBeleg_Refined"
+    n_classes = 9
+    ks = 32
+    pd = 16
+
+    visu_compared_views_model(
+        data_loc, [weights_loc_0, weights_loc_1, weights_loc_2], models, templates, ks, pd, n_classes
+    )
 
 
+    '''
+    weights_loc = r"H:\ws_hpc_workloads\hpc_models\mfcb_Edge_01_UNet3D_Hilbig_crp10000\mfcb_Edge_01_UNet3D_Hilbig_crp10000_save_50.pth"
+    n_classes = 9
+    ks = 32
+    pd = 16
+    template = "edge"
+    model = "UNet_Hilbig"
 
+    data_0 = r"H:\ws_seg_test\debug_output\rot_test_x_up"
+    data_1 = r"H:\ws_seg_test\debug_output\rot_test_z_up"
+    data_2 = r"H:\ws_seg_test\debug_output\rot_test_odd_up"
+
+    visu_compared_views_geom([data_0, data_1, data_2], weights_loc, model, template, ks, pd, n_classes)
+    '''
 
 if __name__=="__main__":
     main()
