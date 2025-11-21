@@ -402,7 +402,7 @@ def visu_voxel_label_and_prediction(data_loc, weights_loc, model_type, class_tem
 
 
 def main():
-    data_loc = r"H:\ws_seg_test\debug_output\REBeleg_Refined"
+    data_loc = r"H:\ws_label_test\label\00019240"
     #weights_loc = r"H:\ws_hpc_workloads\hpc_models\SegDemoEdge_32\SegDemoEdge_32_save_50.pth"
     #weights_loc = r"H:\ws_hpc_workloads\hpc_models\Balanced20k_Edge32_LRE-05\Balanced20k_Edge32_LRE-05_save_50.pth"
     weights_loc = r"H:\ws_hpc_workloads\hpc_models\mfcb_Edge_01_UNet3D_Hilbig_crp10000\mfcb_Edge_01_UNet3D_Hilbig_crp10000_save_50.pth"
@@ -410,11 +410,11 @@ def main():
     template = "edge"
     model_type = "UNet_Hilbig"
     n_classes = 9
-    ks = 32
-    pd = 16
+    ks = 16
+    pd = 0
     #visu_voxel_label_and_prediction(data_loc, weights_loc, model_type, template, ks, pd, n_classes)
-    visu_voxel_prediction_on_dir(data_loc, weights_loc, model_type,template, ks, pd, n_classes)
-    #visu_voxel_label_on_dir(data_loc, ks, pd, template, n_classes)
+    #visu_voxel_prediction_on_dir(data_loc, weights_loc, model_type,template, ks, pd, n_classes)
+    visu_voxel_label_on_dir(data_loc, ks, pd, template, n_classes)
     #visu_voxel_prediction_from_h5(h5_path, template, ks, pd, n_classes)
 
 

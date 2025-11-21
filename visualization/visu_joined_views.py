@@ -75,7 +75,7 @@ def visu_compared_views_geom(data_locs, weights_loc, model_type, class_template,
             for name in class_list if name != 'Outside'
         ]
 
-        plot_title = os.path.basename(weights_loc).split('.')[0]
+        plot_title = os.path.basename(data_loc)
 
         p.subplot(0, i)
         p.add_mesh(pred_voxel, scalars='rgba', rgba=True, lighting=True, ambient=ambient, diffuse=diffuse,
@@ -228,7 +228,7 @@ def main():
     )
 
 
-    '''
+
     weights_loc = r"H:\ws_hpc_workloads\hpc_models\mfcb_Edge_01_UNet3D_Hilbig_crp10000\mfcb_Edge_01_UNet3D_Hilbig_crp10000_save_50.pth"
     n_classes = 9
     ks = 32
@@ -241,7 +241,6 @@ def main():
     data_2 = r"H:\ws_seg_test\debug_output\rot_test_odd_up"
 
     visu_compared_views_geom([data_0, data_1, data_2], weights_loc, model, template, ks, pd, n_classes)
-    '''
 
 if __name__=="__main__":
     main()
