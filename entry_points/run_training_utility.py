@@ -67,7 +67,7 @@ class RunTrainingUtility:
 
 
         voxel_count = Classifcation_Helpers.get_voxel_count_from_stats_binary(stat_bin)
-        fcb_weights = Classifcation_Helpers.get_fcb_weights_from_voxel_count(voxel_count)
+        fcb_weights = Classifcation_Helpers.get_fcb_weights_from_voxel_count(voxel_count, min_val=0.1)
         fcb_weights = np.atleast_1d(fcb_weights.astype(float))
         fcb_weights_list = fcb_weights.tolist()
 
@@ -107,7 +107,7 @@ class RunTrainingUtility:
             raise FileNotFoundError(f"Not stats file found: {stat_bin}")
 
         voxel_count = Classifcation_Helpers.get_voxel_count_from_stats_binary(stat_bin)
-        mfcb_weights = Classifcation_Helpers.get_fcb_median_weights_from_class_count(voxel_count)
+        mfcb_weights = Classifcation_Helpers.get_fcb_median_weights_from_class_count(voxel_count, min_val=0.1)
         mfcb_weights = np.atleast_1d(mfcb_weights.astype(float))
         mfcb_weights_list = mfcb_weights.tolist()
 
