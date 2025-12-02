@@ -90,11 +90,11 @@ def __crop_gzipped_dataset(gzipped_dataset, unpack_dir, stats_dir, cropped_dir, 
 
 def main():
     n_samples = 20000
-    template = "edge"
-    ignore_index = [7,8]
+    template = "inside_outside"
+    ignore_index = [6,7]
     search_str = "h5.gz"
-    h5_out_name = f"ABC_Edge_ks32swo4nbw8nk3_crp{n_samples}"
-    target_dir = r"H:\ws_abc_labelling\export"
+    h5_out_name = f"abc_ks16_rot_InOut_2f0_crp{n_samples}"
+    target_dir = r"H:\ws_abc_labelling\abc_ks16_rot_InOut_2f0_labels"
 
     workspace  =  rf"H:\ws_{h5_out_name}"
     log_file = rf"{workspace}/{h5_out_name}.log"

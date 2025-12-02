@@ -102,8 +102,8 @@ def main():
     n_samples = 100000
     template = "inside_outside"
     search_str = "h5.gz"
-    target_dir = r"H:\ws_design_2026\00_datagen\Block_A"
-    result_dir = r"H:\ws_design_2026\01_labels\Block_A"
+    target_dir = r"H:\ws_design_2026\00_datagen\Block_C"
+    result_dir = r"H:\ws_design_2026\01_labels\Block_C"
     outfile_pattern="{dataset_name}_start_{n}"
     log_file=os.path.join(target_dir, "dir_crop.log")
     with open(log_file, "w"): pass

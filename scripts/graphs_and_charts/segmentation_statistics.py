@@ -12,6 +12,26 @@ import visualization.color_templates
 from visualization import color_templates
 from scipy import stats
 
+def __get_voxel_class_dist_from_stat_bin(stat_bin: str):
+
+    with open(stat_bin, "rb") as f:
+        voxels_per_sample = pickle.load(f)
+
+    voxels_per_dataset = np.sum(voxels_per_sample, axis=0)
+    return voxels_per_dataset
+
+def __aggregate_voxel_stat_for_campaings(root, search_str, template):
+
+    class_list = color_templates.get_class_list(template)
+    matching_bin_pth = __list_matching_files(root, search_str, 2)
+
+    stat_table = np.ndarray(shape=(len(matching_bin_pth), len(class_list)))
+
+    for i, f in enumerate(matching_bin_pth):
+        stat_table[i] = __get_voxel_class_dist_from_stat_bin(f)
+
+    return stat_table
+
 def __plot_confusion_matrix(ccm_result_loc: str, class_plate):
 
     class_list = color_templates.get_class_list(class_plate)
@@ -150,17 +170,41 @@ def __epoch_from_string(filename: str):
     ep_number = after_ep.split("_", 1)[0]
     return int(ep_number)
 
-def __list_matching_files(root: str, search_str: str):
 
-    f_names = np.asarray(os.listdir(root))
+def __list_matching_files(root: str, search_str: str, depth: int = 0):
+    """
+    Recursively list files whose names contain `search_str`.
 
-    matching = np.asarray([search_str in name for name in f_names])
+    depth:
+        0 = only root directory
+        1 = root + 1 level down
+        n = recurse n levels
+        None = unlimited recursion
+    """
+    results = []
 
-    matches = f_names[matching]
+    def _recurse(current_path, current_depth):
+        # list directory contents
+        try:
+            entries = os.listdir(current_path)
+        except Exception:
+            return  # skip if unreadable directory
 
-    matches_path = [os.path.join(root, match) for match in matches]
+        for name in entries:
+            full = os.path.join(current_path, name)
 
-    return matches_path
+            # file matching
+            if os.path.isfile(full) and search_str in name:
+                results.append(full)
+
+            # directory recursion
+            if os.path.isdir(full):
+                if depth is None or current_depth < depth:
+                    _recurse(full, current_depth + 1)
+
+    _recurse(root, 0)
+
+    return np.asarray(results)
 
 def __extract_distribution_metrics(val_result_bin: str):
     # create model signature
@@ -320,6 +364,43 @@ def plot_default_line_charts():
     __line_chart_from_dataframe(df_abc, "EP", "p%")
 
 def main():
+    root = r"H:\ws_design_2026\01_labels"
+    template = color_templates.inside_outside_color_template_abc()
+
+    # --- CRP stats ---
+    search_str = "results_start_100000_stats.bin"
+    stats_crp = __aggregate_voxel_stat_for_campaings(root, search_str, template, )
+    dist_crp = np.sum(stats_crp, axis=0)
+    total_crp = np.sum(dist_crp)
+    dist_crp_p = dist_crp / total_crp * 100
+
+    # per-class standard deviation (absolute)
+    dist_crp_std = np.std(stats_crp, axis=0)
+    # or percentage std:
+    dist_crp_std_p = dist_crp_std / total_crp * 100
+
+    # --- RAW stats ---
+    search_str = "results_stats.bin"
+    stats_raw = __aggregate_voxel_stat_for_campaings(root, search_str, template)
+    dist_raw = np.sum(stats_raw, axis=0)
+    total_raw = np.sum(dist_raw)
+    dist_raw_p = dist_raw / total_raw * 100
+
+    dist_raw_std = np.std(stats_raw, axis=0)
+    dist_raw_std_p = dist_raw_std / total_raw * 100
+
+    class_list = color_templates.get_class_list(template)
+
+    # --- Print Table ---
+    print(f"{'Class':<10} {'p_raw':>10} {'p_crp':>10} {'std_raw':>10} {'std_crp':>10}")
+    for i, c in enumerate(class_list):
+        print(f"{c:<10} "
+              f"{dist_raw_p[i]:>10.4f} "
+              f"{dist_crp_p[i]:>10.4f} "
+              f"{dist_raw_std_p[i]:>10.4f} "
+              f"{dist_crp_std_p[i]:>10.4f}")
+
+    '''
     #mcm
     stats_file = r"H:\ws_hpc_workloads\hpc_val\SegDemo\SegDemoInOut_32_EP50_val_result_mcm.bin"
     template = color_templates.inside_outside_color_template_abc()
@@ -341,6 +422,8 @@ def main():
 
     result_file = r"H:\ws_hpc_workloads\hpc_val\TEST_INOUT\TEST_INOUT_Balance_Test_03_UNet3D_Hilbig_mfcb_EP50_val_result.bin"
     __histogramm_segmentation_samples(result_file)
+    '''
+
 
 if __name__ == "__main__":
     main()
