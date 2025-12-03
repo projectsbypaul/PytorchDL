@@ -195,13 +195,13 @@ def visu_input_prediction_mesh(data_loc, weights_loc, obj_loc, model_type, class
 
 def main():
     '''
-    data_loc = r"H:\ws_label_test\label\00013045"
-    obj_loc = r"H:\ws_label_test\source\00013045\00013045.obj"
-    weights_loc = r"H:\ws_hpc_workloads\hpc_models\fcb_InOut_01_UNet3D_Hilbig_crp10000\fcb_InOut_01_UNet3D_Hilbig_crp10000_save_90.pth"
+    data_loc = r"H:\ws_seg_test\debug_output\REBeleg_Refined"
+    obj_loc = r"H:\ws_seg_test\source\REBeleg_Refined.obj"
+    weights_loc = r"H:\ws_hpc_workloads\hpc_models\InOut_rot_UNet3D_Hilbig_1f0_crp20000_e-05_fcb\InOut_rot_UNet3D_Hilbig_1f0_crp20000_e-05_fcb_save_50.pth"
     template = "inside_outside"
     model_type = "UNet_Hilbig"
     n_classes = 8
-    ks = 32
+    ks = 16
     pd = 4
 
     # visu_mesh_prediction_on_dir(data_loc, weights_loc, obj_loc, model_type,template, ks, pd, n_classes)
@@ -210,7 +210,7 @@ def main():
     visu_input_prediction_mesh(data_loc, weights_loc, obj_loc, model_type, template, ks, pd, n_classes)
     '''
 
-    '''  '''
+    '''  
     weights_loc_0 = r"H:\ws_hpc_workloads\hpc_models\SegDemoEdge_32\SegDemoEdge_32_save_50.pth"
     weights_loc_1 = r"H:\ws_hpc_workloads\hpc_models\Balanced20k_Edge32_LRE-05\Balanced20k_Edge32_LRE-05_save_50.pth"
     weights_loc_2 = r"H:\ws_hpc_workloads\hpc_models\mfcb_Edge_01_UNet3D_Hilbig_crp10000\mfcb_Edge_01_UNet3D_Hilbig_crp10000_save_50.pth"
@@ -227,13 +227,13 @@ def main():
         data_loc, [weights_loc_0, weights_loc_1, weights_loc_2], models, templates, ks, pd, n_classes
     )
 
+    '''
 
-
-    weights_loc = r"H:\ws_hpc_workloads\hpc_models\mfcb_Edge_01_UNet3D_Hilbig_crp10000\mfcb_Edge_01_UNet3D_Hilbig_crp10000_save_50.pth"
-    n_classes = 9
-    ks = 32
-    pd = 16
-    template = "edge"
+    weights_loc = r"H:\ws_hpc_workloads\hpc_models\InOut_rot_UNet3D_Hilbig_1f0_crp20000_e-05\InOut_rot_UNet3D_Hilbig_1f0_crp20000_e-05_save_50.pth"
+    n_classes = 8
+    pd = 4
+    ks = 16
+    template = "inside_outside"
     model = "UNet_Hilbig"
 
     data_0 = r"H:\ws_seg_test\debug_output\rot_test_x_up"
@@ -241,6 +241,7 @@ def main():
     data_2 = r"H:\ws_seg_test\debug_output\rot_test_odd_up"
 
     visu_compared_views_geom([data_0, data_1, data_2], weights_loc, model, template, ks, pd, n_classes)
+
 
 if __name__=="__main__":
     main()

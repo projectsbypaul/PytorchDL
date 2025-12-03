@@ -364,43 +364,23 @@ def plot_default_line_charts():
     __line_chart_from_dataframe(df_abc, "EP", "p%")
 
 def main():
-    root = r"H:\ws_design_2026\01_labels"
+    # mcm
+    stats_file = r"H:\ws_hpc_workloads\hpc_val\VAL_ROT\VAL_ROT_InOut_rot_UNet3D_Hilbig_2f0_crp20000_e-05_EP40_val_result_mcm.bin"
     template = color_templates.inside_outside_color_template_abc()
+    __plot_confusion_matrix(stats_file, template)
 
-    # --- CRP stats ---
-    search_str = "results_start_100000_stats.bin"
-    stats_crp = __aggregate_voxel_stat_for_campaings(root, search_str, template, )
-    dist_crp = np.sum(stats_crp, axis=0)
-    total_crp = np.sum(dist_crp)
-    dist_crp_p = dist_crp / total_crp * 100
+    stats_file = r"H:\ws_hpc_workloads\hpc_val\VAL_ROT\VAL_ROT_InOut_rot_UNet3D_Hilbig_1f0_crp20000_e-05_EP40_val_result_mcm.bin"
+    template = color_templates.inside_outside_color_template_abc()
+    __plot_confusion_matrix(stats_file, template)
 
-    # per-class standard deviation (absolute)
-    dist_crp_std = np.std(stats_crp, axis=0)
-    # or percentage std:
-    dist_crp_std_p = dist_crp_std / total_crp * 100
+    result_file = r"H:\ws_hpc_workloads\hpc_val\VAL_ROT\VAL_ROT_InOut_rot_UNet3D_Hilbig_2f0_crp20000_e-05_EP40_val_result.bin"
+    __histogramm_segmentation_samples(result_file)
 
-    # --- RAW stats ---
-    search_str = "results_stats.bin"
-    stats_raw = __aggregate_voxel_stat_for_campaings(root, search_str, template)
-    dist_raw = np.sum(stats_raw, axis=0)
-    total_raw = np.sum(dist_raw)
-    dist_raw_p = dist_raw / total_raw * 100
+    result_file = r"H:\ws_hpc_workloads\hpc_val\VAL_ROT\VAL_ROT_InOut_rot_UNet3D_Hilbig_1f0_crp20000_e-05_EP40_val_result.bin"
+    __histogramm_segmentation_samples(result_file)
 
-    dist_raw_std = np.std(stats_raw, axis=0)
-    dist_raw_std_p = dist_raw_std / total_raw * 100
 
-    class_list = color_templates.get_class_list(template)
-
-    # --- Print Table ---
-    print(f"{'Class':<10} {'p_raw':>10} {'p_crp':>10} {'std_raw':>10} {'std_crp':>10}")
-    for i, c in enumerate(class_list):
-        print(f"{c:<10} "
-              f"{dist_raw_p[i]:>10.4f} "
-              f"{dist_crp_p[i]:>10.4f} "
-              f"{dist_raw_std_p[i]:>10.4f} "
-              f"{dist_crp_std_p[i]:>10.4f}")
-
-    '''
+'''
     #mcm
     stats_file = r"H:\ws_hpc_workloads\hpc_val\SegDemo\SegDemoInOut_32_EP50_val_result_mcm.bin"
     template = color_templates.inside_outside_color_template_abc()

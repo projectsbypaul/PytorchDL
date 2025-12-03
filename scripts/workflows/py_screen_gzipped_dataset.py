@@ -13,7 +13,7 @@ import shutil
 
 def main():
 
-    gzipped_h5 = r"H:\ws_design_2026\00_datagen\Block_A\train_A_10000_16_pd0_bw1_vs3_20250825-084440\train_A_10000_16_pd0_bw1_vs3_20250825-084440_results.h5.gz"
+    gzipped_h5 = r"H:\abc_ks16_rot_InOut_1f0_crp20000\abc_ks16_rot_InOut_1f0_crp20000.h5.gz"
     class_template = "inside_outside"
 
     h5_name = os.path.basename(gzipped_h5).split('.')[0]
