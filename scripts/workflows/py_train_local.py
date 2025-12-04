@@ -35,6 +35,7 @@ class LocalRun:
         model_name: str,
         dataset_loc: str,
         workspace: str,
+        model_weights_loc: str,
         epochs: int,
         backup_epochs: int,
         batch_size: int,
@@ -50,7 +51,7 @@ class LocalRun:
         workers: int = 1,
         resume_epoch: int = 0,
         class_weights_mode: str = 'default',
-        model_weights_loc: str = None,
+
         hdf5_path: str = None,
     ):
 
@@ -96,7 +97,6 @@ class LocalRun:
         self.resume_epoch = resume_epoch
         self.class_weights_mode = class_weights_mode
         self.model_weights_loc = model_weights_loc
-        self.model_weights_loc = model_weights_loc
         self.hdf5_path = hdf5_path
 
     def __setup_workspace(self):
@@ -108,7 +108,8 @@ class LocalRun:
         print(f"Copy stat.bin to workspace at {self.workspace}")
 
         stat_file = os.path.join(self.dataset_loc, dataset_name + "_stats.bin")
-        if not os.path.exists(stat_file):
+        stat_file_loc = os.path.join(self.workspace, dataset_name + "_stats.bin")
+        if not os.path.exists(stat_file_loc) and os.path.exists(stat_file):
             shutil.copy(stat_file, self.workspace)
 
         print(f"Unpack gzipped dataset into {self.workspace}")
@@ -157,6 +158,7 @@ def setup_runs():
         model_name="test_model",
         dataset_loc=r"/mnt/h/abc_ks16_rot_InOut_1f0_crp20000",
         workspace=r"/mnt/h/ws_training_local",
+        model_weights_loc=r"/mnt/h/ws_training_local/model_weights/{model_name}/{run_name}_save_{epoch}.pth",
         epochs=100,
         backup_epochs= 5,
         batch_size=4,

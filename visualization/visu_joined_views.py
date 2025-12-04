@@ -48,27 +48,27 @@ def apply_scaled_camera(p, subplot_index, camera_mode="isometric", distance_scal
     p.camera_set = True
 
 def visu_compared_views_geom(data_locs, weights_loc, model_type, class_template,
-                                    kernel_size, padding, n_classes,
-                                    stride=1, surface_only=False):
-    # Ensure a running QApplication
-    app = QtWidgets.QApplication.instance()
-    if app is None:
-        app = QtWidgets.QApplication(sys.argv)
+                             kernel_size, padding, n_classes,
+                             stride=1, surface_only=False):
 
-    # Create PyVistaQt background plotter (tuple for window_size!)
+    app = QtWidgets.QApplication.instance() or QtWidgets.QApplication(sys.argv)
     p = BackgroundPlotter(shape=(1, len(data_locs)), window_size=(1600, 800))
 
-    ambient = 0.52
-    diffuse = 0.4
-    specular = 0.1
+    ambient, diffuse, specular = 0.52, 0.4, 0.1
 
     for i, data_loc in enumerate(data_locs):
-
         pred_voxel, class_list, custom_colors = visu_voxel_prediction_on_dir(
             data_loc, weights_loc, model_type, class_template,
             kernel_size, padding, n_classes,
             stride=stride, surface_only=surface_only, render=False
         )
+
+        # --- force opaque voxels for comparison ---
+        if 'rgba' in pred_voxel.array_names:
+            rgba = pred_voxel['rgba'].copy()
+            rgba[:, 3] = 255
+            pred_voxel['rgba'] = rgba
+        # ------------------------------------------
 
         legend_entries = [
             [name, tuple(c / 255 for c in custom_colors[name])]
@@ -78,31 +78,25 @@ def visu_compared_views_geom(data_locs, weights_loc, model_type, class_template,
         plot_title = os.path.basename(data_loc)
 
         p.subplot(0, i)
-        p.add_mesh(pred_voxel, scalars='rgba', rgba=True, lighting=True, ambient=ambient, diffuse=diffuse,
-                   specular=specular)
-        p.add_text( plot_title, font_size=10)
+        p.add_mesh(pred_voxel, scalars='rgba', rgba=True, lighting=True,
+                   ambient=ambient, diffuse=diffuse, specular=specular)
+        p.add_text(plot_title, font_size=10)
+
         if legend_entries:
             p.add_legend(legend_entries, bcolor='white', face='circle',
                          size=(0.2, 0.25), loc='lower right')
-
 
     p.link_views()
     app.exec_()
 
 def visu_compared_views_model(data_loc, weights_locs, model_types, class_templates,
-                                    kernel_size, padding, n_classes,
-                                    stride=1, surface_only=False):
-    # Ensure a running QApplication
-    app = QtWidgets.QApplication.instance()
-    if app is None:
-        app = QtWidgets.QApplication(sys.argv)
+                              kernel_size, padding, n_classes,
+                              stride=1, surface_only=False):
 
-    # Create PyVistaQt background plotter (tuple for window_size!)
+    app = QtWidgets.QApplication.instance() or QtWidgets.QApplication(sys.argv)
     p = BackgroundPlotter(shape=(1, len(weights_locs)), window_size=(1600, 800))
 
-    ambient = 0.52
-    diffuse = 0.4
-    specular = 0.1
+    ambient, diffuse, specular = 0.52, 0.4, 0.1
 
     for i, weights_loc in enumerate(weights_locs):
         model_type = model_types[i]
@@ -114,6 +108,13 @@ def visu_compared_views_model(data_loc, weights_locs, model_types, class_templat
             stride=stride, surface_only=surface_only, render=False
         )
 
+        # --- force opaque voxels for comparison ---
+        if 'rgba' in pred_voxel.array_names:
+            rgba = pred_voxel['rgba'].copy()
+            rgba[:, 3] = 255
+            pred_voxel['rgba'] = rgba
+        # ------------------------------------------
+
         legend_entries = [
             [name, tuple(c / 255 for c in custom_colors[name])]
             for name in class_list if name != 'Outside'
@@ -122,17 +123,16 @@ def visu_compared_views_model(data_loc, weights_locs, model_types, class_templat
         plot_title = os.path.basename(weights_loc).split('.')[0]
 
         p.subplot(0, i)
-        p.add_mesh(pred_voxel, scalars='rgba', rgba=True, lighting=True, ambient=ambient, diffuse=diffuse,
-                   specular=specular)
-        p.add_text( plot_title, font_size=10)
+        p.add_mesh(pred_voxel, scalars='rgba', rgba=True, lighting=True,
+                   ambient=ambient, diffuse=diffuse, specular=specular)
+        p.add_text(plot_title, font_size=10)
+
         if legend_entries:
             p.add_legend(legend_entries, bcolor='white', face='circle',
                          size=(0.2, 0.25), loc='lower right')
 
-
     p.link_views()
     app.exec_()
-
 
 
 def visu_input_prediction_mesh(data_loc, weights_loc, obj_loc, model_type, class_template,
@@ -197,7 +197,7 @@ def main():
     '''
     data_loc = r"H:\ws_seg_test\debug_output\REBeleg_Refined"
     obj_loc = r"H:\ws_seg_test\source\REBeleg_Refined.obj"
-    weights_loc = r"H:\ws_hpc_workloads\hpc_models\InOut_rot_UNet3D_Hilbig_1f0_crp20000_e-05_fcb\InOut_rot_UNet3D_Hilbig_1f0_crp20000_e-05_fcb_save_50.pth"
+    weights_loc = r"H:\ws_training_local\model_weights\test_model\test_model_lr[1e-05]_lrdc[1e-01]_bs4_save_20.pth"
     template = "inside_outside"
     model_type = "UNet_Hilbig"
     n_classes = 8
@@ -229,7 +229,8 @@ def main():
 
     '''
 
-    weights_loc = r"H:\ws_hpc_workloads\hpc_models\InOut_rot_UNet3D_Hilbig_1f0_crp20000_e-05\InOut_rot_UNet3D_Hilbig_1f0_crp20000_e-05_save_50.pth"
+    '''  '''
+    weights_loc = r"H:\ws_training_local\model_weights\test_model\test_model_lr[1e-05]_lrdc[1e-01]_bs4_save_20.pth"
     n_classes = 8
     pd = 4
     ks = 16
@@ -243,5 +244,7 @@ def main():
     visu_compared_views_geom([data_0, data_1, data_2], weights_loc, model, template, ks, pd, n_classes)
 
 
+MAIN = main()
+
 if __name__=="__main__":
-    main()
+    pass

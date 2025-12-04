@@ -74,7 +74,7 @@ def visu_voxel_prediction_from_h5(h5_file: str, class_template: str,   kernel_si
     for idx, name in enumerate(class_list):
         r, g, b = custom_colors[name]
         a = 0.0 if name in hidden else float(custom_opacity.get(name, 1.0))
-        lut_rgba[idx] = (r, g, b, int(round(a * 255)))
+        lut_rgba[idx] = (r, g, b, int(round(max(a, 0.35) * 255)))  # min opacity 0.35
 
     colors_rgba = lut_rgba[kept_labels]  # (K, 4) uint8
 
@@ -96,7 +96,7 @@ def visu_voxel_prediction_from_h5(h5_file: str, class_template: str,   kernel_si
             glyphs,
             scalars='rgba',
             rgba=True,
-            lighting=False,  # flat label colors
+            lighting=True,  # flat label colors
             culling='back',  # reduce overdraw
             show_edges=False,
             render_lines_as_tubes=False,
@@ -198,7 +198,7 @@ def visu_voxel_prediction_on_dir(data_loc: str, weights_loc: str, model_type: st
     for idx, name in enumerate(class_list):
         r, g, b = custom_colors[name]
         a = 0.0 if name in hidden else float(custom_opacity.get(name, 1.0))
-        lut_rgba[idx] = (r, g, b, int(round(a * 255)))
+        lut_rgba[idx] = (r, g, b, int(round(max(a, 0.35) * 255)))  # min opacity 0.35
 
     colors_rgba = lut_rgba[kept_labels]  # (K, 4) uint8
 
@@ -220,7 +220,7 @@ def visu_voxel_prediction_on_dir(data_loc: str, weights_loc: str, model_type: st
             glyphs,
             scalars='rgba',
             rgba=True,
-            lighting=False,  # flat label colors
+            lighting=True,  # flat label colors
             culling='back',  # reduce overdraw
             show_edges=False,
             render_lines_as_tubes=False,
@@ -309,7 +309,7 @@ def visu_voxel_label_on_dir(data_loc: str, kernel_size: int, padding: int, class
         for idx, name in enumerate(class_list):
             r, g, b = custom_colors[name]
             a = 0.0 if name in hidden else float(custom_opacity.get(name, 1.0))
-            lut_rgba[idx] = (r, g, b, int(round(a * 255)))
+            lut_rgba[idx] = (r, g, b, int(round(max(a, 0.35) * 255)))  # min opacity 0.35
 
         colors_rgba = lut_rgba[kept_labels]  # (K, 4) uint8
 
@@ -331,7 +331,7 @@ def visu_voxel_label_on_dir(data_loc: str, kernel_size: int, padding: int, class
                 glyphs,
                 scalars='rgba',
                 rgba=True,
-                lighting=False,  # flat label colors
+                lighting=True,  # flat label colors
                 culling='back',  # reduce overdraw
                 show_edges=False,
                 render_lines_as_tubes=False,
@@ -402,19 +402,19 @@ def visu_voxel_label_and_prediction(data_loc, weights_loc, model_type, class_tem
 
 
 def main():
-    data_loc = r"H:\ws_abc_labelling\abc_ks16_rot\ABC_chunk_01_rot_ks16swo0nbw4nk3_20251120-082345\temp_label_ABC_chunk_01_rot_ks16swo0nbw4nk3_20251120-082345_results\00019334"
+    data_loc = r"H:\ws_seg_test\debug_output\REBeleg_Source"
     #weights_loc = r"H:\ws_hpc_workloads\hpc_models\SegDemoEdge_32\SegDemoEdge_32_save_50.pth"
     #weights_loc = r"H:\ws_hpc_workloads\hpc_models\Balanced20k_Edge32_LRE-05\Balanced20k_Edge32_LRE-05_save_50.pth"
-    weights_loc = r"H:\ws_hpc_workloads\hpc_models\mfcb_Edge_01_UNet3D_Hilbig_crp10000\mfcb_Edge_01_UNet3D_Hilbig_crp10000_save_50.pth"
+    weights_loc = r"H:\ws_training_local\model_weights\test_model\test_model_lr[1e-05]_lrdc[1e-01]_bs4_save_20.pth"
     h5_path = r"H:\ws_seg_vdb\vdb_cyl_test\int_grid_predictions.h5"
     template = "inside_outside"
     model_type = "UNet_Hilbig"
     n_classes = 8
     ks = 16
-    pd = 0
+    pd = 4
     #visu_voxel_label_and_prediction(data_loc, weights_loc, model_type, template, ks, pd, n_classes)
-    #visu_voxel_prediction_on_dir(data_loc, weights_loc, model_type,template, ks, pd, n_classes)
-    visu_voxel_label_on_dir(data_loc, ks, pd, template, n_classes)
+    visu_voxel_prediction_on_dir(data_loc, weights_loc, model_type,template, ks, pd, n_classes)
+    #visu_voxel_label_on_dir(data_loc, ks, pd, template, n_classes)
     #visu_voxel_prediction_from_h5(h5_path, template, ks, pd, n_classes)
 
 
