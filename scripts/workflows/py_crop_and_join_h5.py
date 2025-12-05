@@ -93,8 +93,8 @@ def main():
     template = "inside_outside"
     ignore_index = [6,7]
     search_str = "h5.gz"
-    h5_out_name = f"abc_ks16_rot_InOut_1f0_crp{n_samples}"
-    target_dir = r"H:\ws_abc_labelling\abc_ks16_rot_InOut_1f0_labels"
+    h5_out_name = f"abc_ks16_rot_InOut_4f0_crp{n_samples}"
+    target_dir = r"H:\ws_abc_labelling\abc_ks16_rot_InOut_4f0_labels"
 
     workspace  =  rf"H:\ws_{h5_out_name}"
     log_file = rf"{workspace}/{h5_out_name}.log"

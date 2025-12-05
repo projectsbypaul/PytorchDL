@@ -4,6 +4,7 @@ import shutil
 import os
 import re
 import sys
+from multiprocessing.pool import worker
 
 sys.path.append("/mnt/c/Users/pschuster/source/repos/PytorchDL")
 from entry_points.run_training_utility import RunTrainingUtility
@@ -118,7 +119,18 @@ class LocalRun:
                 with open(self.hdf5_path, "wb") as f_out:
                     shutil.copyfileobj(f_in, f_out)
 
+    def __clean_workspace(self):
+        print(f"Cleaning workspace at {self.workspace}")
+        dataset_name = os.path.basename(self.dataset_loc).split('.')[0]
+        stat_file_loc = os.path.join(self.workspace, dataset_name + "_stats.bin")
 
+        # Remove HDF5 file if it exists
+        if os.path.isfile(self.hdf5_path):
+            os.remove(self.hdf5_path)
+
+        # Remove stats file if it exists
+        if os.path.isfile(stat_file_loc):
+            os.remove(stat_file_loc)
 
     def do_run(self):
 
@@ -153,21 +165,24 @@ class LocalRun:
                     raw_ep_resume=str(self.resume_epoch)
                 )
 
+        self.__clean_workspace()
+
 def setup_runs():
     local_1 = LocalRun(
         model_name="test_model",
         dataset_loc=r"/mnt/h/abc_ks16_rot_InOut_1f0_crp20000",
         workspace=r"/mnt/h/ws_training_local",
         model_weights_loc=r"/mnt/h/ws_training_local/model_weights/{model_name}/{run_name}_save_{epoch}.pth",
-        epochs=100,
-        backup_epochs= 5,
+        epochs=2,
+        backup_epochs= 1,
         batch_size=4,
         lr=1e-5,
         decay_order=1e-1,
         n_classes=8,
         model_type="UNet_Hilbig",
         model_seed=1337,
-        class_weights_mode="mfcb"
+        class_weights_mode="mfcb",
+        workers=1 #for windows workers = 0
     )
 
     local_1.do_run()

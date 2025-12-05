@@ -10,6 +10,7 @@ import numpy as np
 from dl_torch.models.UNet3D_Segmentation import UNet_Hilbig, UNet3D_16EL
 from dl_torch.model_utility import Custom_Metrics
 from pathlib import Path
+from dl_torch.model_utility import TrainVal_Helpers
 
 def val_segmentation_stats_on_dir(val_result_dir :  str, output_file):
     input_files = [f for f in os.listdir(val_result_dir) if f.endswith(".bin")]
@@ -71,8 +72,8 @@ def validate_segmentation_model(
     kernel_size: int,
     padding: int,
     n_classes: int,
-    model_type: str = "default",
-    template: str = "default"
+    model_type: str,
+    template: str
 ):
     """
     Validate a 3D segmentation model on a dataset of pre-processed samples.
@@ -168,22 +169,7 @@ def validate_segmentation_model(
         print("Using device:", device)
 
         # Set up dictionary
-        model = None
-
-        model_list = {
-            "default": 0,
-            "UNet_Hilbig": 1,
-            "UNet_16EL": 2
-        }
-
-        match model_list[model_type]:
-            case 0:
-                model = UNet_Hilbig(in_channels=1, out_channels=n_classes)
-            case 1:
-                model = UNet_Hilbig(in_channels=1, out_channels=n_classes)
-            case 2:
-                model = UNet3D_16EL(in_channels=1, out_channels=n_classes)
-
+        model = TrainVal_Helpers.get_model_by_name(model_type, n_classes)
         # Safe checkpoint load (supports raw or 'state_dict'-wrapped)
         ckpt = torch.load(weights_loc, map_location='cpu')
         state_dict = ckpt.get('state_dict', ckpt)
@@ -269,21 +255,7 @@ def validate_segmentation_model(
                   f"{oob_voxel_examples}")
 
         # Set up dictionary
-        color_temp = None
-
-        template_list = {
-            "default": 0,
-            "inside_outside": 1,
-            "edge": 2
-        }
-        # color/classes template (your chosen template)
-        match template_list[template]:
-            case 0:
-                color_temp = color_templates.inside_outside_color_template_abc()
-            case 1:
-                color_temp = color_templates.inside_outside_color_template_abc()
-            case 2:
-                color_temp = color_templates.edge_color_template_abc()
+        color_temp = color_templates.get_template_by_name(template)
 
         class_to_index = color_templates.get_class_to_index_dict(color_temp)
 
@@ -367,13 +339,15 @@ def validate_segmentation_model(
 
 
 def main():
-    val_dataset_loc = r"W:\hpc_workloads\hpc_datasets\val_data_run_00\val_2500_32_pd8_bw8_nk3_20250922-085956\unpacked"
-    weights_loc = "W:\hpc_workloads\hpc_models\SegDemoInOut_32\SegDemoInOut_32_save_100.pth"
-    save_loc = r"W:\hpc_workloads\hpc_val\result.bin"
+    val_dataset_loc = r"H:\ws_hpc_workloads\hpc_datasets\val_data\val_2500_32_pd8_bw8_nk3_20250922-085956\unpacked"
+    weights_loc = "H:\ws_hpc_workloads\hpc_models\Balanced20k_Edge32_bs4lr0f00001sp0f75\Balanced20k_Edge32_bs4lr0f00001sp0f75_save_50.pth"
+    save_loc = r"H:\ws_hpc_workloads\hpc_val\result.bin"
+    model_type = "UNet_Hilbig"
+    template = "edge"
     ks = 32
     padding = 8
-    n_classes=8
-    validate_segmentation_model(val_dataset_loc, weights_loc, save_loc, ks, padding, n_classes)
+    n_classes=9
+    validate_segmentation_model(val_dataset_loc, weights_loc, save_loc, ks, padding, n_classes, model_type, template)
 
 
 

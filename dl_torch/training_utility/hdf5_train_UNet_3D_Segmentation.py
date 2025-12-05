@@ -18,6 +18,7 @@ from dl_torch.models.UNet3D_Segmentation import UNet3D_16EL
 from dl_torch.models.UNet3D_Segmentation import UNet_Hilbig
 from dl_torch.model_utility.Scheduler import get_linear_scheduler
 from dl_torch.data_utility.HDF5Dataset import HDF5Dataset
+from dl_torch.model_utility import TrainVal_Helpers
 
 
 # ---------------------------
@@ -363,21 +364,7 @@ def train_model_hdf5(
         print("Nondeterministic mode: no seeding of split/shuffle.")
         seed_for_loaders = None
 
-    # Model & data
-    model_architecture = {
-        "default": 0,
-        "UNet_16EL": 1,
-        "UNet_Hilbig": 2,
-    }
-
-    match model_architecture[model_type]:
-        case 0:
-            model = UNet3D_16EL(in_channels=1, out_channels=n_classes)
-        case 1:
-            model = UNet3D_16EL(in_channels=1, out_channels=n_classes)
-        case 2:
-            model = UNet_Hilbig(in_channels=1, out_channels=n_classes)
-
+    model = TrainVal_Helpers.get_model_by_name(model_type, n_classes)
     # Build dataset once
     dataset = HDF5Dataset(hdf5_path)
 
@@ -478,38 +465,6 @@ def train_model_hdf5(
 def main():
     print("PyTorch:", torch.__version__)
     print("Python :", platform.python_version())
-
-    hdf5_path = r"H:\ws_abc_chunks\source\ABC_chunk_01_ks32swo4nbw8nk3_20250929-101945\chunk01_label_test.h5"
-    model_weights_loc = r"H:\ABC\ABC_torch\temp_models/{model_name}/{run_name}_save_{epoch}.pth"
-
-    # Set to 0 or None for nondeterministic behavior; >0 for deterministic split/shuffle + init.
-    model_seed = 1337  # try 0 to disable determinism
-
-    model_name = "UNet_Test"
-
-    # Example: resume from a specific epoch if its checkpoint/weights exist
-    resume_from = 0  # or None to start from scratch
-
-
-    train_model_hdf5(
-        model_name=model_name,
-        hdf5_path=hdf5_path,
-        model_weights_loc=model_weights_loc,
-        epochs=5,
-        backup_epochs=1,
-        batch_size=8,
-        lr=1e-4,
-        decay_order=1e-1,
-        split=0.9,
-        use_amp=True,
-        val_batch_factor=4,
-        workers=0,
-        show_tqdm=True,
-        n_classes=10,
-        model_seed=model_seed,
-        model_type="default",
-        resume_epoch=resume_from,   # resume if files exist
-    )
 
 
 if __name__ == "__main__":

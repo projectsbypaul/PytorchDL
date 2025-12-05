@@ -62,12 +62,7 @@ def visu_mesh_prediction_on_dir(data_loc: str, weights_loc: str, obj_loc: str, m
     face_to_grid_index = seg_info["FACE_TO_GRID_INDEX_CONTAINER"]["data"]
 
     # Color/opacity template
-    if class_template == "inside_outside":
-        color_temp = color_templates.inside_outside_color_template_abc()
-    elif class_template == "edge":
-        color_temp = color_templates.edge_color_template_abc()
-    else:
-        raise NotImplementedError(f"Class Template '{class_template}' not implemented")
+    color_temp = color_templates.get_template_by_name(class_template)
 
     class_list = color_templates.get_class_list(color_temp)
     index_to_class = color_templates.get_index_to_class_dict(color_temp)
@@ -161,8 +156,6 @@ def visu_mesh_label_on_dir(data_loc: str, obj_loc: str, class_template: str, ker
         os.path.join(data_loc, "segmentation_data.dat")
     )
 
-
-
     # -----------------------------
     # 2) Load model + predict
     # -----------------------------
@@ -178,12 +171,7 @@ def visu_mesh_label_on_dir(data_loc: str, obj_loc: str, class_template: str, ker
     ftm_label = seg_info["FACE_TYPE_MAP"]
 
     # Color/opacity template
-    if class_template == "inside_outside":
-        color_temp = color_templates.inside_outside_color_template_abc()
-    elif class_template == "edge":
-        color_temp = color_templates.edge_color_template_abc()
-    else:
-        raise NotImplementedError(f"Class Template '{class_template}' not implemented")
+    color_temp = color_templates.get_template_by_name(class_template)
 
     class_list = color_templates.get_class_list(color_temp)
     index_to_class = color_templates.get_index_to_class_dict(color_temp)
@@ -313,12 +301,12 @@ def visu_mesh_label_and_prediction(data_loc, weights_loc, obj_loc, model_type, c
 def main():
     data_loc = r"H:\ws_label_test\label\00013045"
     obj_loc = r"H:\ws_label_test\source\00013045\00013045.obj"
-    weights_loc = r"H:\ws_hpc_workloads\hpc_models\Balanced20k_Edge32_LRE-04\Balanced20k_Edge32_LRE-04_save_10.pth"
-    template = "edge"
+    weights_loc = r"H:\ws_training_local\model_weights\test_model\test_model_lr[1e-05]_lrdc[1e-01]_bs4_save_2.pth"
+    template = "inside_outside"
     model_type = "UNet_Hilbig"
-    n_classes = 9
-    ks = 32
-    pd = 0
+    n_classes = 8
+    ks = 16
+    pd = 4
 
     # visu_mesh_prediction_on_dir(data_loc, weights_loc, obj_loc, model_type,template, ks, pd, n_classes)
     # visu_mesh_label_on_dir(data_loc, obj_loc, template, ks, pd, n_classes)

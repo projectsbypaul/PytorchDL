@@ -12,18 +12,12 @@ from qtpy import QtWidgets
 import sys
 import h5py
 
-def visu_voxel_prediction_from_h5(h5_file: str, class_template: str,   kernel_size: int, padding: int, n_classes: int,
-                      stride: int = 1, surface_only=True, render=True):
+def visu_voxel_prediction_from_h5(h5_file: str, class_template: str, stride: int = 1, surface_only=True, render=True):
 
     with h5py.File(h5_file, "r") as f:
         full_grid = f["flat_predictions"][:]  # read entire dataset into memory
 
-    if class_template == "inside_outside":
-        color_temp = color_templates.inside_outside_color_template_abc()
-    elif class_template == "edge":
-        color_temp = color_templates.edge_color_template_abc()
-    else:
-        raise NotImplementedError(f"Class Template '{class_template}' not implemented")
+    color_temp = color_templates.get_template_by_name(class_template)
 
     class_list = color_templates.get_class_list(color_temp)  # ordered names -> indices
     custom_colors = color_templates.get_color_dict(color_temp)  # {name: (R,G,B)}
@@ -140,12 +134,7 @@ def visu_voxel_prediction_on_dir(data_loc: str, weights_loc: str, model_type: st
     origins = seg_info["ORIGIN_CONTAINER"]["data"]  # list of (x,y,z)
     vs = seg_info["SCALARS"]["voxel_size"]
     # Color/opacity template
-    if class_template == "inside_outside":
-        color_temp = color_templates.inside_outside_color_template_abc()
-    elif class_template == "edge":
-        color_temp = color_templates.edge_color_template_abc()
-    else:
-        raise NotImplementedError(f"Class Template '{class_template}' not implemented")
+    color_temp = color_templates.get_template_by_name(class_template)
 
     class_list     = color_templates.get_class_list(color_temp)          # ordered names -> indices
     custom_colors  = color_templates.get_color_dict(color_temp)          # {name: (R,G,B)}
@@ -238,7 +227,7 @@ def visu_voxel_prediction_on_dir(data_loc: str, weights_loc: str, model_type: st
     else:
         return glyphs, class_list, custom_colors
 
-def visu_voxel_label_on_dir(data_loc: str, kernel_size: int, padding: int, class_template: str, n_classes: int,
+def visu_voxel_label_on_dir(data_loc: str, kernel_size: int, padding: int, class_template: str,
                               stride: int = 1, surface_only: bool = False, render=True):
 
         # -----------------------------
@@ -255,12 +244,8 @@ def visu_voxel_label_on_dir(data_loc: str, kernel_size: int, padding: int, class
         origins = seg_info["ORIGIN_CONTAINER"]["data"]  # should be (N, 3)
         vs = seg_info["SCALARS"]["voxel_size"]
         # Color/opacity template
-        if class_template == "inside_outside":
-            color_temp = color_templates.inside_outside_color_template_abc()
-        elif class_template == "edge":
-            color_temp = color_templates.edge_color_template_abc()
-        else:
-            raise NotImplementedError(f"Class Template '{class_template}' not implemented")
+
+        color_temp = color_templates.get_template_by_name(class_template)
 
         class_list = color_templates.get_class_list(color_temp)  # ordered names -> indices
         custom_colors = color_templates.get_color_dict(color_temp)  # {name: (R,G,B)}
@@ -360,7 +345,7 @@ def visu_voxel_label_and_prediction(data_loc, weights_loc, model_type, class_tem
     )
     label_mesh, _, _ = visu_voxel_label_on_dir(
         data_loc, kernel_size, padding, class_template,
-        n_classes, stride=stride, surface_only=surface_only, render=False
+        stride=stride, surface_only=surface_only, render=False
     )
 
     legend_entries = [
@@ -402,19 +387,19 @@ def visu_voxel_label_and_prediction(data_loc, weights_loc, model_type, class_tem
 
 
 def main():
-    data_loc = r"H:\ws_seg_test\debug_output\REBeleg_Source"
+    data_loc = r"H:\ws_label_test\label\00013045"
     #weights_loc = r"H:\ws_hpc_workloads\hpc_models\SegDemoEdge_32\SegDemoEdge_32_save_50.pth"
     #weights_loc = r"H:\ws_hpc_workloads\hpc_models\Balanced20k_Edge32_LRE-05\Balanced20k_Edge32_LRE-05_save_50.pth"
     weights_loc = r"H:\ws_training_local\model_weights\test_model\test_model_lr[1e-05]_lrdc[1e-01]_bs4_save_20.pth"
     h5_path = r"H:\ws_seg_vdb\vdb_cyl_test\int_grid_predictions.h5"
-    template = "inside_outside"
+    template = "edge"
     model_type = "UNet_Hilbig"
-    n_classes = 8
+    n_classes = 9
     ks = 16
     pd = 4
     #visu_voxel_label_and_prediction(data_loc, weights_loc, model_type, template, ks, pd, n_classes)
-    visu_voxel_prediction_on_dir(data_loc, weights_loc, model_type,template, ks, pd, n_classes)
-    #visu_voxel_label_on_dir(data_loc, ks, pd, template, n_classes)
+    #visu_voxel_prediction_on_dir(data_loc, weights_loc, model_type,template, ks, pd, n_classes)
+    visu_voxel_label_on_dir(data_loc, ks, pd, template)
     #visu_voxel_prediction_from_h5(h5_path, template, ks, pd, n_classes)
 
 

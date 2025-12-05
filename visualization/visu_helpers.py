@@ -3,6 +3,7 @@ from dl_torch.models.UNet3D_Segmentation import UNet3D_16EL, UNet_Hilbig
 from utility.data_exchange import cppIOexcavator
 import numpy as np
 import os
+from dl_torch.model_utility import TrainVal_Helpers
 
 def __predict_in_batches(model, data, batch_size, device, use_amp=True, dtype=torch.float16, apply_softmax = False):
     model.eval()
@@ -56,12 +57,7 @@ def __run_prediction_on_dir(data_loc: str, weights_loc: str, n_classes: int, mod
     print("Using device:", device)
 
 
-    if model_type == "UNet_Hilbig":
-        model = UNet_Hilbig(in_channels=1, out_channels=n_classes, apply_softmax=apply_softmax)
-    elif model_type == "UNet_16EL":
-        model = UNet3D_16EL(in_channels=1, out_channels=n_classes, apply_softmax=apply_softmax)
-    else:
-        raise NotImplementedError(f"Model type '{model_type}' not implemented")
+    model = TrainVal_Helpers.get_model_by_name(model_type, n_classes)
 
     state_dict = torch.load(weights_loc, map_location='cpu')
     model.load_state_dict(state_dict)

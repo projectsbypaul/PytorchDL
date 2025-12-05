@@ -32,9 +32,10 @@ def __aggregate_voxel_stat_for_campaings(root, search_str, template):
 
     return stat_table
 
-def __plot_confusion_matrix(ccm_result_loc: str, class_plate):
+def __plot_confusion_matrix(ccm_result_loc: str, class_template: str):
 
-    class_list = color_templates.get_class_list(class_plate)
+    template = color_templates.get_template_by_name(class_template)
+    class_list = color_templates.get_class_list(template)
 
     with open(ccm_result_loc, "rb") as f:
         ccm = pickle.load(f)
@@ -364,13 +365,18 @@ def plot_default_line_charts():
     __line_chart_from_dataframe(df_abc, "EP", "p%")
 
 def main():
+    stats_file = r"H:\ws_hpc_workloads\hpc_val\result_mcm.bin"
+    template = 'edge'
+    __plot_confusion_matrix(stats_file, template)
+
+    '''
     # mcm
     stats_file = r"H:\ws_hpc_workloads\hpc_val\VAL_ROT\VAL_ROT_InOut_rot_UNet3D_Hilbig_2f0_crp20000_e-05_EP40_val_result_mcm.bin"
-    template = color_templates.inside_outside_color_template_abc()
+    template = 'inside_outside'
     __plot_confusion_matrix(stats_file, template)
 
     stats_file = r"H:\ws_hpc_workloads\hpc_val\VAL_ROT\VAL_ROT_InOut_rot_UNet3D_Hilbig_1f0_crp20000_e-05_EP40_val_result_mcm.bin"
-    template = color_templates.inside_outside_color_template_abc()
+    template = 'inside_outside'
     __plot_confusion_matrix(stats_file, template)
 
     result_file = r"H:\ws_hpc_workloads\hpc_val\VAL_ROT\VAL_ROT_InOut_rot_UNet3D_Hilbig_2f0_crp20000_e-05_EP40_val_result.bin"
@@ -378,7 +384,7 @@ def main():
 
     result_file = r"H:\ws_hpc_workloads\hpc_val\VAL_ROT\VAL_ROT_InOut_rot_UNet3D_Hilbig_1f0_crp20000_e-05_EP40_val_result.bin"
     __histogramm_segmentation_samples(result_file)
-
+    '''
 
 '''
     #mcm

@@ -7,6 +7,7 @@ from utility.data_exchange import cppIOexcavator
 import numpy as np
 import os
 import h5py
+from dl_torch.model_utility import TrainVal_Helpers
 
 def test_cpp_py_array_matches(data_loc: str, weights_loc: str, n_classes: int, model_type:str = "UNet_Hilbig"):
 
@@ -34,12 +35,7 @@ def test_cpp_py_array_matches(data_loc: str, weights_loc: str, n_classes: int, m
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print("Using device:", device)
 
-    if model_type == "UNet_Hilbig":
-        model = UNet_Hilbig(in_channels=1, out_channels=n_classes)
-    elif model_type == "UNet_16EL":
-        model = UNet3D_16EL(in_channels=1, out_channels=n_classes)
-    else:
-        raise NotImplementedError(f"Model type '{model_type}' not implemented")
+    model = TrainVal_Helpers.get_model_by_name(model_type, n_classes)
 
     state_dict = torch.load(weights_loc, map_location='cpu')
     model.load_state_dict(state_dict)
@@ -76,7 +72,8 @@ def test_cpp_py_array_matches(data_loc: str, weights_loc: str, n_classes: int, m
         print(f"Compared Array: matches={count_match} diff={count_diff}")
 
 
-def visu_mesh_model_on_dir(data_loc : str,weights_loc : str, save_loc : str, kernel_size : int, padding : int, n_classes):
+def visu_mesh_model_on_dir(data_loc : str,weights_loc : str, save_loc : str, kernel_size : int, padding : int,
+                           class_template : str, model_type: str, n_classes: int):
     # parameters
     bin_array_file = data_loc + "/segmentation_data_segments.bin"
     segment_info_file = data_loc + "/segmentation_data.dat"
@@ -95,7 +92,7 @@ def visu_mesh_model_on_dir(data_loc : str,weights_loc : str, save_loc : str, ker
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     print("Using device:", device)
 
-    model = UNet_Hilbig(in_channels=1, out_channels=n_classes)
+    model = TrainVal_Helpers.get_model_by_name(model_type, n_classes)
     state_dict = torch.load(weights_loc)
 
     model.load_state_dict(state_dict)  # it takes the loaded dictionary, not the path file itself
@@ -134,7 +131,7 @@ def visu_mesh_model_on_dir(data_loc : str,weights_loc : str, save_loc : str, ker
                 for z in range(int(padding * 0.5), kernel_size - int(padding * 0.5)):
                     full_grid[int(offset[0]) + x,int(offset[1]) + y, int(offset[2]) + z] = grid[x,y,z]
 
-    color_temp = color_templates.edge_color_template_abc_sorted()
+    color_temp = color_templates.get_template_by_name(class_template)
     custom_colors = color_templates.get_color_dict(color_temp)
     index_to_class = color_templates.get_index_to_class_dict(color_temp)
 
@@ -197,12 +194,7 @@ def run_prediction_on_dir(data_loc: str, weights_loc: str, n_classes: int, model
     print("Using device:", device)
 
 
-    if model_type == "UNet_Hilbig":
-        model = UNet_Hilbig(in_channels=1, out_channels=n_classes)
-    elif model_type == "UNet_16EL":
-        model = UNet3D_16EL(in_channels=1, out_channels=n_classes)
-    else:
-        raise NotImplementedError(f"Model type '{model_type}' not implemented")
+    model = TrainVal_Helpers.get_model_by_name(model_type, n_classes)
 
     state_dict = torch.load(weights_loc, map_location='cpu')
     model.load_state_dict(state_dict)

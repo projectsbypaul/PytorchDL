@@ -30,9 +30,32 @@ def inside_outside_color_template_abc() -> VisualProperties:
         'Outside':  ((0, 0, 255),    0.0),   # blue
     }
 
+def primitive_template_abc() -> VisualProperties:
+    return {
+        'Cone':     ((0, 128, 0),    1.0),   # green
+        'Cylinder': ((255, 165, 0),  1.0),   # orange
+        'Plane':    ((255, 20, 147), 1.0),   # deep pink
+        'Sphere':   ((128, 0, 0),    1.0),   # maroon
+        'Torus':    ((0, 255, 255),  1.0),   # cyan
+        'Inside':   ((255, 0, 0),    0.0),   # red
+        'Outside':  ((0, 0, 255),    0.0),   # blue
+    }
+
 def edge_color_template_abc() -> VisualProperties:
     return {
         'BSpline':  ((138, 43, 226), 1.0),   # purple
+        'Cone':     ((0, 128, 0),    1.0),   # green
+        'Cylinder': ((255, 165, 0),  1.0),   # orange
+        'Plane':    ((255, 20, 147), 1.0),   # deep pink
+        'Sphere':   ((128, 0, 0),    1.0),   # maroon
+        'Torus':    ((0, 255, 255),  1.0),   # cyan
+        'Edge':     ((255, 255, 0),  1.0),   # yellow
+        'Inside':   ((255, 0, 0),    1.0),   # red
+        'Outside':  ((0, 0, 255),    0.0),   # blue
+    }
+
+def primitive_edge_color_template_abc() -> VisualProperties:
+    return {
         'Cone':     ((0, 128, 0),    1.0),   # green
         'Cylinder': ((255, 165, 0),  1.0),   # orange
         'Plane':    ((255, 20, 147), 1.0),   # deep pink
@@ -87,6 +110,27 @@ def get_class_to_index_dict(template: VisualProperties) -> Dict[str, int]:
 def get_index_to_class_dict(template: VisualProperties) -> Dict[int, str]:
     """Returns the inverse mapping from index to class name."""
     return {idx: class_name for idx, class_name in enumerate(template.keys())}
+
+def get_template_by_name(template_name: str):
+
+    templates = {
+        "inside_outside" : 0,
+        "edge" : 1,
+        "primitive" : 2,
+        "primitive_edge" : 3
+    }
+
+    code = templates.get(template_name)
+    if code is None:
+        raise ValueError(f"Unknown template name '{template_name}'")
+
+    match code:
+        case 0: return inside_outside_color_template_abc()
+        case 1: return edge_color_template_abc()
+        case 2: return primitive_template_abc()
+        case 3: return primitive_edge_color_template_abc()
+        case _: raise RuntimeError(f"Unhandled template code: {code}")
+
 
 def main():
     template = default_color_template_abc()
