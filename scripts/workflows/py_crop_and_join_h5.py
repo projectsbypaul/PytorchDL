@@ -14,6 +14,25 @@ import pickle
 from utility.logging import config_logger
 import csv
 
+def __safe_remove_file(path: str):
+    try:
+        os.remove(path)
+    except FileNotFoundError:
+        # fine, nothing to remove
+        pass
+    except Exception as e:
+        # avoid logging here if logger is suspect
+        print(f"[WARN] Failed to remove file {path}: {e}")
+
+def __safe_rmtree(path: str):
+    try:
+        shutil.rmtree(path)
+    except FileNotFoundError:
+        pass
+    except Exception as e:
+        print(f"[WARN] Failed to remove directory {path}: {e}")
+
+
 def __find_gzipped_datasets(target_dir: str, search_str: str) -> list[str]:
     target_dir = Path(target_dir)
     matches = list(target_dir.rglob(f"*{search_str}*"))
@@ -87,23 +106,15 @@ def __crop_gzipped_dataset(gzipped_dataset, unpack_dir, stats_dir, cropped_dir, 
 
     return h5_cropped
 
+def process_block(n_samples, template, ignore_index, search_str, h5_out_name, target_dir):
 
-def main():
-    n_samples = 20000
-    template = "inside_outside"
-    ignore_index = [6,7]
-    search_str = "h5.gz"
-    h5_out_name = f"abc_ks16_rot_InOut_4f0_crp{n_samples}"
-    target_dir = r"H:\ws_abc_labelling\abc_ks16_rot_InOut_4f0_labels"
-
-    workspace  =  rf"H:\ws_{h5_out_name}"
+    workspace = rf"H:\ws_{h5_out_name}"
     log_file = rf"{workspace}/{h5_out_name}.log"
     h5_out = os.path.join(workspace, f"{h5_out_name}.h5")
     stat_bin = os.path.join(workspace, f"{h5_out_name}_stats.bin")
 
-
-    if not os.path.exists(workspace) : os.mkdir(workspace)
-    config_logger.init_log(log_file, capture_print=True)
+    if not os.path.exists(workspace): os.mkdir(workspace)
+    config_logger.init_log(log_file, capture_print=False)
 
     gzipped_dataset = __find_gzipped_datasets(target_dir, search_str)
     logging.info(f"Found {gzipped_dataset.__len__()} entries containing '{search_str}'")
@@ -113,7 +124,6 @@ def main():
     cropped_h5_paths = []
 
     for dataset in gzipped_dataset:
-
         logging.info(f"Start cropping by class of {dataset} to {n_samples} samples per class)")
         logging.info(f"Using template '{template}', ignoring classes {ignore_index}")
 
@@ -138,17 +148,26 @@ def main():
             shutil.copyfileobj(f_in, f_out)
     logging.info(f"Compression done")
 
-
     logging.info(f"Computing class distribution")
     hdf5_utility.screen_hdf_dataset(h5_out, stat_bin, template=template)
     hdf5_utility.get_class_distribution(stat_bin, class_template=template)
     logging.info(f"Computing class distribution done")
 
-    logging.info(f"Computing weights for frequency balancing")
+    __safe_remove_file(h5_out)
+    __safe_rmtree(unpack_dir)
+    __safe_rmtree(cropped_dir)
 
-    os.remove(h5_out)
-    shutil.rmtree(unpack_dir)
-    shutil.rmtree(cropped_dir)
+def main():
+
+    n_samples = 20000
+    template = "primitive"
+    ignore_index = [5, 6]
+    search_str = "h5.gz"
+    h5_out_name = f"abc_ks16_rot_primitive_3f9_crp{n_samples}"
+    target_dir = r"H:\ws_abc_labelling\abc_ks16_rot_primitive_3f9_labels"
+
+    process_block(n_samples, template, ignore_index, search_str, h5_out_name, target_dir)
+
 
 if __name__ == "__main__":
     main()

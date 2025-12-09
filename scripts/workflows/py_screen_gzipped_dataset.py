@@ -10,15 +10,10 @@ from dl_torch.model_utility import Classifcation_Helpers
 import gzip
 import shutil
 
-
-def main():
-
-    gzipped_h5 = r"H:\abc_ks16_rot_InOut_1f0_crp20000\abc_ks16_rot_InOut_1f0_crp20000.h5.gz"
-    class_template = "inside_outside"
-
+def do_process(gzipped_h5, class_template):
     h5_name = os.path.basename(gzipped_h5).split('.')[0]
     workspace = os.path.dirname(gzipped_h5)
-    h5_src = os.path.join(workspace,h5_name)
+    h5_src = os.path.join(workspace, h5_name)
     stat_bin = os.path.join(workspace, f"{h5_name}_stats.bin")
     stat_csv = os.path.join(workspace, f"{h5_name}_wnc.csv")
 
@@ -26,10 +21,9 @@ def main():
         with open(h5_src, "wb") as f_out:
             shutil.copyfileobj(f_in, f_out)
 
-    hdf5_utility.screen_hdf_dataset(h5_src, stat_bin)
-    
-    os.remove(h5_src)
+    hdf5_utility.screen_hdf_dataset(h5_src, stat_bin, class_template)
 
+    os.remove(h5_src)
 
     with open(stat_bin, "rb") as f:
         h5_voxel_count = pickle.load(f)
@@ -52,14 +46,27 @@ def main():
     data = []
 
     for i, entry in enumerate(class_count):
-        data.append({"class": i, "voxel_count": entry, "weights_fcb": w_fcb[i], "weights_median_fcb" : w_median_fcb[i]})
+        data.append({"class": i, "voxel_count": entry, "weights_fcb": w_fcb[i], "weights_median_fcb": w_median_fcb[i]})
 
     with open(stat_csv, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=["class", "voxel_count", "weights_fcb", "weights_median_fcb"], delimiter=";")
+        writer = csv.DictWriter(f, fieldnames=["class", "voxel_count", "weights_fcb", "weights_median_fcb"],
+                                delimiter=";")
         writer.writeheader()
         writer.writerows(data)
 
     print(f"CSV file written to {stat_csv}")
+def main():
+
+    gzipped_h5 = r"H:\ws_abc_ks16_rot_inside_outside_3f9_crp20000\abc_ks16_rot_inside_outside_3f9_crp20000.h5.gz"
+    do_process(gzipped_h5, "inside_outside")
+
+    gzipped_h5 = r"H:\ws_abc_ks16_rot_primitive_1f0_crp20000\abc_ks16_rot_primitive_1f0_crp20000.h5.gz"
+    do_process(gzipped_h5, "primitive")
+
+    gzipped_h5 = r"H:\ws_abc_ks16_rot_primitive_3f9_crp20000\abc_ks16_rot_primitive_3f9_crp20000.h5.gz"
+    do_process(gzipped_h5, "primitive")
+
+
 
 if __name__ == "__main__":
     main()

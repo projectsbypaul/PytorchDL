@@ -71,7 +71,7 @@ def crop_hdf_by_class(src_path: str, result_loc: str, out_path: str, n_samples: 
     hdf_dataset.export_active_selection(out_path)
 
 
-def screen_hdf_dataset(src_path: str, result_loc: str,  template: str = "inside_outside"):
+def screen_hdf_dataset(src_path: str, result_loc: str,  template: str):
     # Print summary
     print("Screening dataset:")
     HDF5Dataset.print_file_info(src_path)
@@ -80,12 +80,7 @@ def screen_hdf_dataset(src_path: str, result_loc: str,  template: str = "inside_
 
     ds_len = ds.__len__()
 
-    if template=="inside_outside":
-        class_temp = color_templates.inside_outside_color_template_abc()
-    elif template =="edge":
-        class_temp = color_templates.edge_color_template_abc()
-    else:
-        raise NotImplementedError(f"Template '{template}' is not implemented.")
+    class_temp = color_templates.get_template_by_name(template)
 
     class_list = color_templates.get_class_list(class_temp)
 
@@ -212,12 +207,7 @@ def get_class_distribution(result_loc, class_template,
 
     # ---- classes & mappings ----
 
-    if class_template == "inside_outside":
-        class_temp = color_templates.inside_outside_color_template_abc()
-    elif class_template == "edge":
-        class_temp = color_templates.edge_color_template_abc()
-    else:
-        raise ValueError(f"Template '{class_template}' not implemented.")
+    class_temp = color_templates.get_template_by_name(class_template)
 
     class_list = color_templates.get_class_list(class_temp)
     class_to_index = color_templates.get_class_to_index_dict(class_temp)
