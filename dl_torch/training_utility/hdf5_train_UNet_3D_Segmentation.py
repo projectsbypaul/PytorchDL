@@ -16,7 +16,7 @@ from tqdm import tqdm
 from dl_torch.model_utility import Custom_Metrics
 from dl_torch.models.UNet3D_Segmentation import UNet3D_16EL
 from dl_torch.models.UNet3D_Segmentation import UNet_Hilbig
-from dl_torch.model_utility.Scheduler import get_linear_scheduler
+from dl_torch.model_utility.Scheduler import get_linear_scheduler, get_exp_step_scheduler
 from dl_torch.data_utility.HDF5Dataset import HDF5Dataset
 from dl_torch.model_utility import TrainVal_Helpers
 
@@ -411,7 +411,8 @@ def train_model_hdf5(
 
 
     optimizer = torch.optim.AdamW(model.parameters(), lr=lr, weight_decay=1e-4)
-    scheduler = get_linear_scheduler(optimizer, lr, lr * decay_order, epochs)
+    #scheduler = get_linear_scheduler(optimizer, lr, lr * decay_order, epochs)
+    scheduler = get_exp_step_scheduler(optimizer, decay_order, epochs)
 
     print(f"Using AMP: {use_amp}")
 

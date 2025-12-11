@@ -65,7 +65,7 @@ class LocalRun:
         assert backup_epochs >= 0, "backup_epochs must be >=0"
         assert batch_size >= 1, "batch_size must be >=1"
         assert 1e-7 < lr <= 10, "lr must be in (0, 10]"
-        assert 0 <= decay_order <= 10, "decay_order must be in [0,10]"
+        #assert 0 <= decay_order <= 10, "decay_order must be in [0,10]"
         assert n_classes >= 1, "n_classes must be >=1"
         assert isinstance(model_type, str) and model_type, "model_type must be non-empty string"
         assert model_seed >= 0, "model_seed must be >=0"
@@ -177,9 +177,9 @@ def setup_runs():
         backup_epochs= 1,
         batch_size=4,
         lr=1e-5,
-        decay_order=1e-1,
+        decay_order=-0.03,
         n_classes=8,
-        model_type="UNet_Hilbig",
+        model_type="UNet_16EL",
         model_seed=1337,
         class_weights_mode="mfcb",
         workers=1 #for windows workers = 0

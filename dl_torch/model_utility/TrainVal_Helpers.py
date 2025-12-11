@@ -4,7 +4,7 @@ def get_model_by_name(model_name: str, n_classes):
 
     model_types = {
         "UNet_Hilbig" : 0,
-        "UNet3D_16EL" : 1
+        "UNet_16EL" : 1
     }
 
     code = model_types.get(model_name)
