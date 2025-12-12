@@ -252,7 +252,7 @@ def train_model_hdf_unified(
             epoch_train_acc += Custom_Metrics.voxel_accuracy(output, target)
 
         # Validation
-        model.eval()
+        #model.eval()
         epoch_val_loss, epoch_val_acc = 0.0, 0.0
         msg = f"\n[Epoch {epoch + 1}/{num_epochs}] Validating..."
         tqdm.write(msg) if show_tqdm else print(msg)
