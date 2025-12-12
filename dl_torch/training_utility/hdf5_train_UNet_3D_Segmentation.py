@@ -91,11 +91,10 @@ def log_cuda_status():
 # Helpers
 # ---------------------------
 def make_run_name(model_name: str, scheduler, batch_size: int) -> str:
-    # Assumes scheduler exposes get_last_lr() and has .final_lr (as in your get_linear_scheduler)
     return (
         f"{model_name}"
-        f"_lr[{scheduler.get_last_lr()[0]}]"
-        f"_lrdc[{scheduler.final_lr / scheduler.get_last_lr()[0]:.0e}]"
+        f"_lr[{scheduler.get_last_lr()[0]:.1e}]"
+        f"_lrf[{scheduler.final_lr:.2e}]"
         f"_bs{batch_size}"
     )
 
@@ -252,7 +251,7 @@ def train_model_hdf_unified(
             epoch_train_acc += Custom_Metrics.voxel_accuracy(output, target)
 
         # Validation
-        #model.eval()
+        model.eval()
         epoch_val_loss, epoch_val_acc = 0.0, 0.0
         msg = f"\n[Epoch {epoch + 1}/{num_epochs}] Validating..."
         tqdm.write(msg) if show_tqdm else print(msg)
@@ -289,6 +288,7 @@ def train_model_hdf_unified(
         writer.add_scalar("Accuracy/Train", avg_train_acc, epoch)
         writer.add_scalar("Loss/Val", avg_val_loss, epoch)
         writer.add_scalar("Accuracy/Val", avg_val_acc, epoch)
+        writer.add_scalar("LR", scheduler.get_last_lr()[0], epoch)
 
         torch.cuda.empty_cache()
 

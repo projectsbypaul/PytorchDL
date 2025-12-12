@@ -6,7 +6,8 @@ def get_exp_step_scheduler(optimizer, decay_step ,n_epochs):
         return math.exp(decay_step * epoch)
 
     scheduler = LambdaLR(optimizer, lr_lambda)
-    scheduler.final_lr = lr_lambda(n_epochs)
+    base_lr = optimizer.param_groups[0]["lr"]
+    scheduler.final_lr = base_lr * lr_lambda(n_epochs)
     return scheduler
 
 def get_linear_scheduler(optimizer, initial_lr, final_lr, n_epochs):

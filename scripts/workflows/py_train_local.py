@@ -170,19 +170,20 @@ class LocalRun:
 def setup_runs():
     local_1 = LocalRun(
         model_name="test_model",
-        dataset_loc=r"/mnt/h/abc_ks16_rot_InOut_1f0_crp20000",
+        dataset_loc=r"/mnt/h/abc_ks16_rot_primitive_1f0_crp20000",
         workspace=r"/mnt/h/ws_training_local",
         model_weights_loc=r"/mnt/h/ws_training_local/model_weights/{model_name}/{run_name}_save_{epoch}.pth",
-        epochs=2,
+        epochs=5,
         backup_epochs= 1,
-        batch_size=4,
-        lr=1e-5,
+        batch_size=64,
+        lr=1e-4,
         decay_order=-0.03,
-        n_classes=8,
+        n_classes=7,
         model_type="UNet_16EL",
         model_seed=1337,
         class_weights_mode="mfcb",
-        workers=1 #for windows workers = 0
+        workers=1, #for windows workers = 0
+        split=0.1
     )
 
     local_1.do_run()
