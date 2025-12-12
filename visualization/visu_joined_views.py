@@ -292,22 +292,22 @@ def visu_input_prediction_mesh(data_loc, weights_loc, obj_loc, model_type, class
 
 
 def main():
-    ''''''
+    '''
     data_loc = r"H:\ws_seg_test\debug_output\REBeleg_Refined"
     obj_loc = r"H:\ws_seg_test\source\REBeleg_Refined.obj"
-    weights_loc = r"H:\ws_training_local\model_weights\test_model\test_model_lr[1e-05]_lrdc[1e-01]_bs4_save_2.pth"
+    weights_loc = r"H:\ws_hpc_workloads\hpc_models\InOut_rot_UNet_16EL_1f0_crp20000_LR0f0001_DC0f01\InOut_rot_UNet_16EL_1f0_crp20000_LR0f0001_DC0f01_save_last.pth"
     template = "inside_outside"
-    model_type = "UNet_Hilbig"
+    model_type = "UNet_16EL"
     n_classes = 8
     ks = 16
-    pd = 4
+    pd = 8
 
     # visu_mesh_prediction_on_dir(data_loc, weights_loc, obj_loc, model_type,template, ks, pd, n_classes)
     # visu_mesh_label_on_dir(data_loc, obj_loc, template, ks, pd, n_classes)
     # visu_mesh_input_on_dir(obj_loc, render=True)
     visu_input_prediction_mesh(data_loc, weights_loc, obj_loc, model_type, template, ks, pd, n_classes)
 
-
+    '''
     '''  
     weights_loc_0 = r"H:\ws_hpc_workloads\hpc_models\SegDemoEdge_32\SegDemoEdge_32_save_50.pth"
     weights_loc_1 = r"H:\ws_hpc_workloads\hpc_models\Balanced20k_Edge32_LRE-05\Balanced20k_Edge32_LRE-05_save_50.pth"
@@ -327,20 +327,21 @@ def main():
 
     '''
 
-    '''  
-    weights_loc = r"H:\ws_training_local\model_weights\test_model\test_model_lr[1e-05]_lrdc[1e-01]_bs4_save_2.pth"
-    n_classes = 8
-    pd = 4
+    '''  '''
+    weights_loc = r"H:\ws_hpc_workloads\hpc_models\Prim_rot_UNet_16EL_1f0_crp20000_LR0f0001_DC0f01\Prim_rot_UNet_16EL_1f0_crp20000_LR0f0001_DC0f01_save_last.pth"
+    n_classes = 7
+    pd = 8
     ks = 16
-    template = "inside_outside"
-    model = "UNet_Hilbig"
+    template = "primitive"
+    model = "UNet_16EL"
 
     data_0 = r"H:\ws_seg_test\debug_output\rot_test_x_up"
     data_1 = r"H:\ws_seg_test\debug_output\rot_test_z_up"
     data_2 = r"H:\ws_seg_test\debug_output\rot_test_odd_up"
 
     visu_compared_views_geom([data_0, data_1, data_2], weights_loc, model, template, ks, pd, n_classes)
-    '''
+
+
 
 MAIN = main()
 
