@@ -3,7 +3,7 @@ from torch.optim.lr_scheduler import LambdaLR
 
 def get_exp_step_scheduler(optimizer, decay_step ,n_epochs):
     def lr_lambda(epoch):
-        return math.exp(decay_step * epoch)
+        return math.exp(-1*decay_step * epoch)
 
     scheduler = LambdaLR(optimizer, lr_lambda)
     base_lr = optimizer.param_groups[0]["lr"]

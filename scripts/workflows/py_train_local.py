@@ -177,7 +177,7 @@ def setup_runs():
         backup_epochs= 1,
         batch_size=64,
         lr=1e-4,
-        decay_order=-0.03,
+        decay_order=0.03,
         n_classes=7,
         model_type="UNet_16EL",
         model_seed=1337,
