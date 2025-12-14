@@ -292,11 +292,13 @@ def visu_input_prediction_mesh(data_loc, weights_loc, obj_loc, model_type, class
 
 
 def main():
-    '''
-    data_loc = r"H:\ws_seg_test\debug_output\REBeleg_Refined"
-    obj_loc = r"H:\ws_seg_test\source\REBeleg_Refined.obj"
-    weights_loc = r"H:\ws_hpc_workloads\hpc_models\InOut_rot_UNet_16EL_1f0_crp20000_LR0f0001_DC0f01\InOut_rot_UNet_16EL_1f0_crp20000_LR0f0001_DC0f01_save_last.pth"
-    template = "inside_outside"
+    '''   '''
+
+    f_name = "Cube_Refined"
+    data_loc = rf"H:\ws_seg_test\debug_output\{f_name}"
+    obj_loc = rf"H:\ws_seg_test\source\{f_name}.obj"
+    weights_loc = r"H:\ws_hpc_workloads\hpc_models\EdgeMCFB_00_UNet_16EL_3f9_crp20000_LR0f0001_DC0f03\EdgeMCFB_00_UNet_16EL_3f9_crp20000_LR0f0001_DC0f03_save_135.pth"
+    template = "primitive_edge"
     model_type = "UNet_16EL"
     n_classes = 8
     ks = 16
@@ -307,7 +309,7 @@ def main():
     # visu_mesh_input_on_dir(obj_loc, render=True)
     visu_input_prediction_mesh(data_loc, weights_loc, obj_loc, model_type, template, ks, pd, n_classes)
 
-    '''
+
     '''  
     weights_loc_0 = r"H:\ws_hpc_workloads\hpc_models\SegDemoEdge_32\SegDemoEdge_32_save_50.pth"
     weights_loc_1 = r"H:\ws_hpc_workloads\hpc_models\Balanced20k_Edge32_LRE-05\Balanced20k_Edge32_LRE-05_save_50.pth"
@@ -327,12 +329,12 @@ def main():
 
     '''
 
-    '''  '''
-    weights_loc = r"H:\ws_hpc_workloads\hpc_models\Prim_rot_UNet_16EL_1f0_crp20000_LR0f0001_DC0f01\Prim_rot_UNet_16EL_1f0_crp20000_LR0f0001_DC0f01_save_last.pth"
-    n_classes = 7
+    '''   
+    weights_loc = r"H:\ws_hpc_workloads\hpc_models\EdgeMCFB_00_UNet_16EL_3f9_crp20000_LR0f0001_DC0f03\EdgeMCFB_00_UNet_16EL_3f9_crp20000_LR0f0001_DC0f03_save_135.pth"
+    n_classes = 8
     pd = 8
     ks = 16
-    template = "primitive"
+    template = "primitive_edge"
     model = "UNet_16EL"
 
     data_0 = r"H:\ws_seg_test\debug_output\rot_test_x_up"
@@ -341,7 +343,7 @@ def main():
 
     visu_compared_views_geom([data_0, data_1, data_2], weights_loc, model, template, ks, pd, n_classes)
 
-
+     '''
 
 MAIN = main()
 

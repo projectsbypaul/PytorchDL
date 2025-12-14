@@ -1,16 +1,23 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from sympy import false
+
+
+def GN(c):
+    return nn.GroupNorm(num_groups=max(1, min(32, c // 4)), num_channels=c)
 
 class ConvBlock3D(nn.Module):
     def __init__(self, in_channels, out_channels):
         super().__init__()
         self.block = nn.Sequential(
-            nn.Conv3d(in_channels, out_channels, kernel_size=3, padding=1),
-            nn.BatchNorm3d(out_channels),
+            nn.Conv3d(in_channels, out_channels, kernel_size=3, padding=1, bias=False),
+            #nn.BatchNorm3d(out_channels),
+            GN(out_channels),
             nn.LeakyReLU(0.1, inplace=True),
-            nn.Conv3d(out_channels, out_channels, kernel_size=3, padding=1),
-            nn.BatchNorm3d(out_channels),
+            nn.Conv3d(out_channels, out_channels, kernel_size=3, padding=1, bias=False),
+            #nn.BatchNorm3d(out_channels),
+            GN(out_channels),
             nn.LeakyReLU(0.1, inplace=True)
         )
 
@@ -52,11 +59,12 @@ class ConvBNReLU3D(nn.Module):
     def __init__(self, in_ch, out_ch):
         super().__init__()
         self.conv = nn.Conv3d(in_ch, out_ch, kernel_size=3, padding=1, bias=False)
-        self.bn   = nn.BatchNorm3d(out_ch)
+        #self.bn   = nn.BatchNorm3d(out_ch)
+        self.gn = GN(out_ch)
         self.act  = nn.LeakyReLU(0.1, inplace=True)
 
     def forward(self, x):
-        return self.act(self.bn(self.conv(x)))
+        return self.act(self.gn(self.conv(x)))
 
 
 class UNet_Hilbig(nn.Module):
