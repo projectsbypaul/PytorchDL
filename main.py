@@ -78,6 +78,7 @@ def main():
     p_train_utility.add_argument('arg12', type=str, nargs='?')
     p_train_utility.add_argument('arg13', type=str, nargs='?')
     p_train_utility.add_argument('arg14', type=str, nargs='?')
+    p_train_utility.add_argument('arg15', type=str, nargs='?')
 
     # -----------------------------
     # module: validation_utility
