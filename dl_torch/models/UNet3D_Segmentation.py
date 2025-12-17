@@ -11,13 +11,13 @@ class ConvBlock3D(nn.Module):
     def __init__(self, in_channels, out_channels):
         super().__init__()
         self.block = nn.Sequential(
-            nn.Conv3d(in_channels, out_channels, kernel_size=3, padding=1, bias=False),
-            #nn.BatchNorm3d(out_channels),
-            GN(out_channels),
+            nn.Conv3d(in_channels, out_channels, kernel_size=3, padding=1, bias=True),
+            nn.BatchNorm3d(out_channels),
+            #GN(out_channels),
             nn.LeakyReLU(0.1, inplace=True),
-            nn.Conv3d(out_channels, out_channels, kernel_size=3, padding=1, bias=False),
-            #nn.BatchNorm3d(out_channels),
-            GN(out_channels),
+            nn.Conv3d(out_channels, out_channels, kernel_size=3, padding=1, bias=True),
+            nn.BatchNorm3d(out_channels),
+            #GN(out_channels),
             nn.LeakyReLU(0.1, inplace=True)
         )
 

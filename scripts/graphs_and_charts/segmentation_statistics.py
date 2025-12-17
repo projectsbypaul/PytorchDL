@@ -365,9 +365,23 @@ def plot_default_line_charts():
     __line_chart_from_dataframe(df_abc, "EP", "p%")
 
 def main():
-    stats_file = r"H:\ws_hpc_workloads\hpc_val\result_mcm.bin"
-    template = 'edge'
+
+    result_file = r"H:\ws_hpc_workloads\hpc_val\PRIM_ROT\PRIM_ROT_EdgeMCFB_00_UNet_16EL_3f9_crp20000_LR0f0001_DC0f03_EP100_val_result.bin"
+    __histogramm_segmentation_samples(result_file)
+
+    stats_file = r"H:\ws_hpc_workloads\hpc_val\PRIM_ROT\PRIM_ROT_EdgeMCFB_00_UNet_16EL_3f9_crp20000_LR0f0001_DC0f03_EP100_val_result_mcm.bin"
+    template = 'primitive_edge'
     __plot_confusion_matrix(stats_file, template)
+
+    result_file = r"H:\ws_hpc_workloads\hpc_val\PRIM_ROT\PRIM_ROT_EdgeMCFB_00_UNet_16EL_3f9_crp20000_LR0f0001_DC0f03_EP100_val_result.bin"
+    __histogramm_segmentation_samples(result_file)
+
+    stats_file = r"H:\ws_hpc_workloads\hpc_val\PRIM_ROT\PRIM_ROT_EdgeMCFB_00_UNet_16EL_1f0_crp20000_LR0f0001_DC0f03_EP100_val_result_mcm.bin"
+    template = 'primitive_edge'
+    __plot_confusion_matrix(stats_file, template)
+
+    result_file = r"H:\ws_hpc_workloads\hpc_val\PRIM_ROT\PRIM_ROT_EdgeMCFB_00_UNet_16EL_1f0_crp20000_LR0f0001_DC0f03_EP100_val_result.bin"
+    __histogramm_segmentation_samples(result_file)
 
     '''
     # mcm
