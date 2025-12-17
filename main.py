@@ -60,10 +60,8 @@ def main():
     p_train_utility.add_argument(
         'mode',
         choices=[
-            'train_UNet_16EL', 'train_UNet_Hilbig',
-            'train_fcb_UNet_16EL', 'train_fcb_UNet_Hilbig',
-            'train_mfcb_UNet_16EL', 'train_mfcb_UNet_Hilbig',
-            'help']
+            'train', 'train_fcb', 'train_mfcb', 'help'
+        ]
     )
     p_train_utility.add_argument('arg0', type=str, nargs='?')
     p_train_utility.add_argument('arg1', type=str, nargs='?')
@@ -305,9 +303,9 @@ def main():
         if args.mode == 'help' or args.arg0 is None:
             print("Usage:\n")
             print("  main.py train_utility help\n")
-            print("  main.py train_utility train_UNet_16EL/train_fcb_UNet_16EL/train_mfcb_UNet_16EL/train_UNet_Hilbig/... \\")
+            print("  main.py train_utility train/train_fcb/train_mfcb... \\")
             print(
-                "      <model_name> <hdf5_path> <model_weights_loc> <epoch> \\"
+                "      <model_type> <model_name> <hdf5_path> <model_weights_loc> <epoch> \\"
             )
             print(
                 "      <backup_epochs> <batch_size> <lr> <decay_order> <split> \\"
@@ -317,31 +315,32 @@ def main():
             )
             sys.exit(0)
 
-        elif args.mode == 'train_UNet_16EL':
+        elif args.mode == 'train':
             try:
-                model_name: str = args.arg0
-                hdf5_path: str = args.arg1
-                model_weights_loc: str = args.arg2
-                epoch: int = int(args.arg3)
-                backup_epochs: int = int(args.arg4)
-                batch_size: int = int(args.arg5)
-                lr: float = float(args.arg6)
-                decay_order: float = float(args.arg7)
-                split: float = float(args.arg8)
-                use_amp: bool = str2bool(args.arg9)
-                val_batch_factor: int = int(args.arg10)
-                workers: int = int(args.arg11)
-                n_classes: int = int(args.arg12)
-                model_seed: int = int(args.arg13)
-                ep_resume_raw: str | None = args.arg14
+                model_type: str = args.args0
+                model_name: str = args.arg1
+                hdf5_path: str = args.arg2
+                model_weights_loc: str = args.arg3
+                epoch: int = int(args.arg4)
+                backup_epochs: int = int(args.arg5)
+                batch_size: int = int(args.arg6)
+                lr: float = float(args.arg7)
+                decay_order: float = float(args.arg8)
+                split: float = float(args.arg9)
+                use_amp: bool = str2bool(args.arg10)
+                val_batch_factor: int = int(args.arg11)
+                workers: int = int(args.arg12)
+                n_classes: int = int(args.arg13)
+                model_seed: int = int(args.arg14)
+                ep_resume_raw: str | None = args.arg15
             except (TypeError, ValueError):
                 print(
-                    "[ERROR] Invalid or missing arguments for 'train_UNet_16EL'."
+                    "[ERROR] Invalid or missing arguments for 'train'."
                 )
                 p_train_utility.print_help()
                 sys.exit(1)
 
-            RunTrainingUtility.run_hdf5_train_UNet_3D_Segmentation(
+            RunTrainingUtility.run_hdf5_train(
                 model_name,
                 hdf5_path,
                 model_weights_loc,
@@ -356,35 +355,36 @@ def main():
                 workers,
                 n_classes,
                 model_seed,
-                model_type="UNet_16EL",
+                model_type=model_type,
                 raw_ep_resume=ep_resume_raw,  # pass raw; callee normalizes
             )
 
-        elif args.mode == 'train_fcb_UNet_16EL':
+        elif args.mode == 'train_fcb':
             try:
-                model_name: str = args.arg0
-                hdf5_path: str = args.arg1
-                model_weights_loc: str = args.arg2
-                epoch: int = int(args.arg3)
-                backup_epochs: int = int(args.arg4)
-                batch_size: int = int(args.arg5)
-                lr: float = float(args.arg6)
-                decay_order: float = float(args.arg7)
-                split: float = float(args.arg8)
-                use_amp: bool = str2bool(args.arg9)
-                val_batch_factor: int = int(args.arg10)
-                workers: int = int(args.arg11)
-                n_classes: int = int(args.arg12)
-                model_seed: int = int(args.arg13)
-                ep_resume_raw: str | None = args.arg14
+                model_type: str = args.args0
+                model_name: str = args.arg1
+                hdf5_path: str = args.arg2
+                model_weights_loc: str = args.arg3
+                epoch: int = int(args.arg4)
+                backup_epochs: int = int(args.arg5)
+                batch_size: int = int(args.arg6)
+                lr: float = float(args.arg7)
+                decay_order: float = float(args.arg8)
+                split: float = float(args.arg9)
+                use_amp: bool = str2bool(args.arg10)
+                val_batch_factor: int = int(args.arg11)
+                workers: int = int(args.arg12)
+                n_classes: int = int(args.arg13)
+                model_seed: int = int(args.arg14)
+                ep_resume_raw: str | None = args.arg15
             except (TypeError, ValueError):
                 print(
-                    "[ERROR] Invalid or missing arguments for 'train_fcb_UNet_16EL'."
+                    "[ERROR] Invalid or missing arguments for 'train_fcb'."
                 )
                 p_train_utility.print_help()
                 sys.exit(1)
 
-            RunTrainingUtility.run_hdf5_train_fcb_UNet_3D_Segmentation(
+            RunTrainingUtility.run_hdf5_train_fcb(
                 model_name,
                 hdf5_path,
                 model_weights_loc,
@@ -399,35 +399,36 @@ def main():
                 workers,
                 n_classes,
                 model_seed,
-                model_type="UNet_16EL",
+                model_type=model_type,
                 raw_ep_resume=ep_resume_raw,  # pass raw; callee normalizes
             )
 
-        elif args.mode == 'train_mfcb_UNet_16EL':
+        elif args.mode == 'train_mfcb':
             try:
-                model_name: str = args.arg0
-                hdf5_path: str = args.arg1
-                model_weights_loc: str = args.arg2
-                epoch: int = int(args.arg3)
-                backup_epochs: int = int(args.arg4)
-                batch_size: int = int(args.arg5)
-                lr: float = float(args.arg6)
-                decay_order: float = float(args.arg7)
-                split: float = float(args.arg8)
-                use_amp: bool = str2bool(args.arg9)
-                val_batch_factor: int = int(args.arg10)
-                workers: int = int(args.arg11)
-                n_classes: int = int(args.arg12)
-                model_seed: int = int(args.arg13)
-                ep_resume_raw: str | None = args.arg14
+                model_type: str = args.args0
+                model_name: str = args.arg1
+                hdf5_path: str = args.arg2
+                model_weights_loc: str = args.arg3
+                epoch: int = int(args.arg4)
+                backup_epochs: int = int(args.arg5)
+                batch_size: int = int(args.arg6)
+                lr: float = float(args.arg7)
+                decay_order: float = float(args.arg8)
+                split: float = float(args.arg9)
+                use_amp: bool = str2bool(args.arg10)
+                val_batch_factor: int = int(args.arg11)
+                workers: int = int(args.arg12)
+                n_classes: int = int(args.arg13)
+                model_seed: int = int(args.arg14)
+                ep_resume_raw: str | None = args.arg15
             except (TypeError, ValueError):
                 print(
-                    "[ERROR] Invalid or missing arguments for 'train_mfcb_UNet_16EL'."
+                    "[ERROR] Invalid or missing arguments for 'train_mfcb'."
                 )
                 p_train_utility.print_help()
                 sys.exit(1)
 
-            RunTrainingUtility.run_hdf5_train_mfcb_UNet_3D_Segmentation(
+            RunTrainingUtility.run_hdf5_train_mfcb(
                 model_name,
                 hdf5_path,
                 model_weights_loc,
@@ -442,136 +443,7 @@ def main():
                 workers,
                 n_classes,
                 model_seed,
-                model_type="UNet_16EL",
-                raw_ep_resume=ep_resume_raw,  # pass raw; callee normalizes
-            )
-
-        elif args.mode == 'train_UNet_Hilbig':
-            try:
-                model_name: str = args.arg0
-                hdf5_path: str = args.arg1
-                model_weights_loc: str = args.arg2
-                epoch: int = int(args.arg3)
-                backup_epochs: int = int(args.arg4)
-                batch_size: int = int(args.arg5)
-                lr: float = float(args.arg6)
-                decay_order: float = float(args.arg7)
-                split: float = float(args.arg8)
-                use_amp: bool = str2bool(args.arg9)
-                val_batch_factor: int = int(args.arg10)
-                workers: int = int(args.arg11)
-                n_classes: int = int(args.arg12)
-                model_seed: int = int(args.arg13)
-                ep_resume_raw: str | None = args.arg14
-            except (TypeError, ValueError):
-                print(
-                    "[ERROR] Invalid or missing arguments for 'train_UNet_Hilbig'."
-                )
-                p_train_utility.print_help()
-                sys.exit(1)
-
-            RunTrainingUtility.run_hdf5_train_UNet_3D_Segmentation(
-                model_name,
-                hdf5_path,
-                model_weights_loc,
-                epoch,
-                backup_epochs,
-                batch_size,
-                lr,
-                decay_order,
-                split,
-                use_amp,
-                val_batch_factor,
-                workers,
-                n_classes,
-                model_seed,
-                model_type="UNet_Hilbig",
-                raw_ep_resume=ep_resume_raw,  # pass raw; callee normalizes
-            )
-
-        elif args.mode == 'train_fcb_UNet_Hilbig':
-            try:
-                model_name: str = args.arg0
-                hdf5_path: str = args.arg1
-                model_weights_loc: str = args.arg2
-                epoch: int = int(args.arg3)
-                backup_epochs: int = int(args.arg4)
-                batch_size: int = int(args.arg5)
-                lr: float = float(args.arg6)
-                decay_order: float = float(args.arg7)
-                split: float = float(args.arg8)
-                use_amp: bool = str2bool(args.arg9)
-                val_batch_factor: int = int(args.arg10)
-                workers: int = int(args.arg11)
-                n_classes: int = int(args.arg12)
-                model_seed: int = int(args.arg13)
-                ep_resume_raw: str | None = args.arg14
-            except (TypeError, ValueError):
-                print(
-                    "[ERROR] Invalid or missing arguments for 'train_fcb_UNet_Hilbig'."
-                )
-                p_train_utility.print_help()
-                sys.exit(1)
-
-            RunTrainingUtility.run_hdf5_train_fcb_UNet_3D_Segmentation(
-                model_name,
-                hdf5_path,
-                model_weights_loc,
-                epoch,
-                backup_epochs,
-                batch_size,
-                lr,
-                decay_order,
-                split,
-                use_amp,
-                val_batch_factor,
-                workers,
-                n_classes,
-                model_seed,
-                model_type="UNet_Hilbig",
-                raw_ep_resume=ep_resume_raw,  # pass raw; callee normalizes
-            )
-
-        elif args.mode == 'train_mfcb_UNet_Hilbig':
-            try:
-                model_name: str = args.arg0
-                hdf5_path: str = args.arg1
-                model_weights_loc: str = args.arg2
-                epoch: int = int(args.arg3)
-                backup_epochs: int = int(args.arg4)
-                batch_size: int = int(args.arg5)
-                lr: float = float(args.arg6)
-                decay_order: float = float(args.arg7)
-                split: float = float(args.arg8)
-                use_amp: bool = str2bool(args.arg9)
-                val_batch_factor: int = int(args.arg10)
-                workers: int = int(args.arg11)
-                n_classes: int = int(args.arg12)
-                model_seed: int = int(args.arg13)
-                ep_resume_raw: str | None = args.arg14
-            except (TypeError, ValueError):
-                print(
-                    "[ERROR] Invalid or missing arguments for 'train_mfcb_UNet_Hilbig'."
-                )
-                p_train_utility.print_help()
-                sys.exit(1)
-
-            RunTrainingUtility.run_hdf5_train_mfcb_UNet_3D_Segmentation(
-                model_name,
-                hdf5_path,
-                model_weights_loc,
-                epoch,
-                backup_epochs,
-                batch_size,
-                lr,
-                decay_order,
-                split,
-                use_amp,
-                val_batch_factor,
-                workers,
-                n_classes,
-                model_seed,
-                model_type="UNet_Hilbig",
+                model_type=model_type,
                 raw_ep_resume=ep_resume_raw,  # pass raw; callee normalizes
             )
 
