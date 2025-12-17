@@ -10,6 +10,48 @@ from entry_points.run_training_utility import RunTrainingUtility
 from entry_points.run_validation_utility import RunValidation
 from entry_points.run_job_utility import RunJobUtility
 
+MODULE_HELP = {
+    "job_utility": {
+        "j_create_all": "root cnt out abs_p rec",
+        "j_create_dirs": "root cnt out abs_p",
+        "j_create_ext": "root cnt ext out abs_p rec",
+    },
+    "data_utility": {
+        "create_subsets": "job_file src tgt n_min tmpl",
+        "torch_to_hdf5": "src tgt",
+        "crop_hdf5": "hdf5 n",
+    },
+    "train_utility": {
+        "train": (
+            "model_type model_name hdf5 weights epoch backup batch "
+            "lr decay split amp val_factor workers n_classes seed ep_resume"
+        ),
+        "train_fcb": "(same as train)",
+        "train_mfcb": "(same as train)",
+    },
+    "validation_utility": {
+        "val_segmentation_UNet": "model weights data k p n save_dir tag",
+    },
+    "visualization": {
+        "model_on_mesh": "data weights save k p n",
+    },
+}
+
+def print_module_help(module):
+    print(f"\nOptions {module}:")
+    modes = MODULE_HELP.get(module)
+
+    if not modes:
+        print("  (no help available)")
+        return
+
+    for mode, args in modes.items():
+        print(f"  {mode:<20} {args}")
+
+def sys_exit_with_help(module, error):
+    print(f"[ERROR] {error}")
+    print_module_help(module)
+    sys.exit(1)
 
 def require_n(args, n, name):
     if len(args) != n:
@@ -95,8 +137,7 @@ def main():
                 raise ValueError("Unsupported data_utility mode")
 
         except Exception as e:
-            print(f"[ERROR] {e}")
-            sys.exit(1)
+            sys_exit_with_help(args.module, e)
 
     # ================= visualization =================
     elif args.module == "visualization":
@@ -110,8 +151,7 @@ def main():
                 data, weights, save, int(k), int(p), int(n)
             )
         except Exception as e:
-            print(f"[ERROR] {e}")
-            sys.exit(1)
+            sys_exit_with_help(args.module, e)
 
     # ================= train_utility =================
     elif args.module == "train_utility":
@@ -170,8 +210,7 @@ def main():
             )
 
         except Exception as e:
-            print(f"[ERROR] {e}")
-            sys.exit(1)
+            sys_exit_with_help(args.module, e)
 
     # ================= validation_utility =================
     elif args.module == "validation_utility":
@@ -191,8 +230,7 @@ def main():
                 args.extra[7],
             )
         except Exception as e:
-            print(f"[ERROR] {e}")
-            sys.exit(1)
+            sys_exit_with_help(args.module, e)
 
     # ================= job_utility =================
     elif args.module == "job_utility":
@@ -226,8 +264,7 @@ def main():
                 )
 
         except Exception as e:
-            print(f"[ERROR] {e}")
-            sys.exit(1)
+            sys_exit_with_help(args.module, e)
 
 
 if __name__ == "__main__":
