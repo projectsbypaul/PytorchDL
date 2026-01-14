@@ -292,7 +292,7 @@ def visu_input_prediction_mesh(data_loc, weights_loc, obj_loc, model_type, class
 
 
 def main():
-    ''''''
+    ''' '''
 
     f_name = "REBeleg_Refined"
     data_loc = rf"H:\ws_seg_test\debug_output\{f_name}"
@@ -308,6 +308,7 @@ def main():
     # visu_mesh_label_on_dir(data_loc, obj_loc, template, ks, pd, n_classes)
     # visu_mesh_input_on_dir(obj_loc, render=True)
     visu_input_prediction_mesh(data_loc, weights_loc, obj_loc, model_type, template, ks, pd, n_classes)
+
 
     '''  
     weights_loc_0 = r"H:\ws_hpc_workloads\hpc_models\SegDemoEdge_32\SegDemoEdge_32_save_50.pth"
@@ -329,11 +330,11 @@ def main():
     '''
 
     '''
-    weights_loc = r"H:\ws_hpc_workloads\hpc_models\GN_Test_UNet_16EL_1f0_crp20000_LR0f0001_DC0f03\GN_Test_UNet_16EL_1f0_crp20000_LR0f0001_DC0f03_save_30.pth"
-    n_classes = 7
+    weights_loc = r"H:\ws_hpc_workloads\hpc_models\EdgeMCFB_00_UNet_16EL_3f9_crp20000_LR0f0001_DC0f03\EdgeMCFB_00_UNet_16EL_3f9_crp20000_LR0f0001_DC0f03_save_135.pth"
+    n_classes = 8
     pd = 8
     ks = 16
-    template = "primitive"
+    template = "primitive_edge"
     model = "UNet_16EL"
 
     data_0 = r"H:\ws_seg_test\debug_output\rot_test_x_up"
@@ -341,8 +342,8 @@ def main():
     data_2 = r"H:\ws_seg_test\debug_output\rot_test_odd_up"
 
     visu_compared_views_geom([data_0, data_1, data_2], weights_loc, model, template, ks, pd, n_classes)
-
     '''
+
 
 MAIN = main()
 

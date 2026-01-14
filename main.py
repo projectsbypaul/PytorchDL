@@ -20,6 +20,7 @@ MODULE_HELP = {
         "create_subsets": "job_file src tgt n_min tmpl",
         "torch_to_hdf5": "src tgt",
         "crop_hdf5": "hdf5 n",
+        "tree_to_hdf5": "root hdf5",
     },
     "train_utility": {
         "train": (
@@ -131,6 +132,12 @@ def main():
                 require_n(args.extra, 2, "crop_hdf5")
                 RunABCHelperFunctions.run_crop_hdf5_dataset(
                     args.extra[0], int(args.extra[1])
+                )
+
+            elif args.mode == "tree_to_hdf5":
+                require_n(args.extra, 2, "tree_to_hdf5")
+                RunABCHelperFunctions.run_convert_bin_tree_to_hdf5(
+                    args.extra[0], args.extra[1]
                 )
 
             else:

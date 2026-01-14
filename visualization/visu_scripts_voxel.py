@@ -387,16 +387,16 @@ def visu_voxel_label_and_prediction(data_loc, weights_loc, model_type, class_tem
 
 
 def main():
-    data_loc = r"H:\ws_label_test\label\00013045"
+    data_loc = r"H:\ws_test\00010397"
     #weights_loc = r"H:\ws_hpc_workloads\hpc_models\SegDemoEdge_32\SegDemoEdge_32_save_50.pth"
     #weights_loc = r"H:\ws_hpc_workloads\hpc_models\Balanced20k_Edge32_LRE-05\Balanced20k_Edge32_LRE-05_save_50.pth"
     weights_loc = r"H:\ws_training_local\model_weights\test_model\test_model_lr[1e-05]_lrdc[1e-01]_bs4_save_20.pth"
     h5_path = r"H:\ws_seg_vdb\vdb_cyl_test\int_grid_predictions.h5"
-    template = "edge"
+    template = "primitive_edge"
     model_type = "UNet_Hilbig"
     n_classes = 9
     ks = 16
-    pd = 4
+    pd = 0
     #visu_voxel_label_and_prediction(data_loc, weights_loc, model_type, template, ks, pd, n_classes)
     #visu_voxel_prediction_on_dir(data_loc, weights_loc, model_type,template, ks, pd, n_classes)
     visu_voxel_label_on_dir(data_loc, ks, pd, template)
