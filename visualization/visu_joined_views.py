@@ -292,50 +292,53 @@ def visu_input_prediction_mesh(data_loc, weights_loc, obj_loc, model_type, class
 
 
 def main():
-    ''' '''
+    '''
 
     f_name = "REBeleg_Refined"
     data_loc = rf"H:\ws_seg_test\debug_output\{f_name}"
     obj_loc = rf"H:\ws_seg_test\source\{f_name}.obj"
-    weights_loc = r"H:\ws_hpc_workloads\hpc_models\EdgeMCFB_00_UNet_16EL_3f9_crp20000_LR0f0001_DC0f03\EdgeMCFB_00_UNet_16EL_3f9_crp20000_LR0f0001_DC0f03_save_135.pth"
+    weights_loc = r"H:\ws_hpc_workloads\hpc_models\TEST_AUG_UNet_16ELGN_primitive_edge_3f9_crp20000_LR0f0001_DC0f03\TEST_AUG_UNet_16ELGN_primitive_edge_3f9_crp20000_LR0f0001_DC0f03_save_40.pth"
     template = "primitive_edge"
-    model_type = "UNet_16EL"
+    model_type = "UNet_16ELGN"
     n_classes = 8
     ks = 16
     pd = 8
+
 
     # visu_mesh_prediction_on_dir(data_loc, weights_loc, obj_loc, model_type,template, ks, pd, n_classes)
     # visu_mesh_label_on_dir(data_loc, obj_loc, template, ks, pd, n_classes)
     # visu_mesh_input_on_dir(obj_loc, render=True)
     visu_input_prediction_mesh(data_loc, weights_loc, obj_loc, model_type, template, ks, pd, n_classes)
+    '''
+
+    '''  '''
+    weights_loc_0 = r"H:\ws_hpc_workloads\hpc_models\EdgeMCFB_00_UNet_16EL_3f9_crp20000_LR0f0001_DC0f03\EdgeMCFB_00_UNet_16EL_3f9_crp20000_LR0f0001_DC0f03_save_40.pth"
+    weights_loc_1 = r"H:\ws_hpc_workloads\hpc_models\TEST_AUG_UNet_16ELGN_primitive_edge_3f9_crp20000_LR0f0001_DC0f03\TEST_AUG_UNet_16ELGN_primitive_edge_3f9_crp20000_LR0f0001_DC0f03_save_40.pth"
+
+
+
+
+    templates = ["primitive_edge", "primitive_edge"]
+    models = ["UNet_16EL", "UNet_16ELGN"]
+
+    data_loc = r"H:\ws_seg_test\debug_output\REBeleg_Refined"
+    n_classes = 8
+    ks = 16
+    pd = 8
+
+    visu_compared_views_model(
+        data_loc, [weights_loc_0, weights_loc_1], models, templates, ks, pd, n_classes
+    )
+
 
 
     '''  
-    weights_loc_0 = r"H:\ws_hpc_workloads\hpc_models\SegDemoEdge_32\SegDemoEdge_32_save_50.pth"
-    weights_loc_1 = r"H:\ws_hpc_workloads\hpc_models\Balanced20k_Edge32_LRE-05\Balanced20k_Edge32_LRE-05_save_50.pth"
-    weights_loc_2 = r"H:\ws_hpc_workloads\hpc_models\mfcb_Edge_01_UNet3D_Hilbig_crp10000\mfcb_Edge_01_UNet3D_Hilbig_crp10000_save_50.pth"
-
-    templates = ["edge", "edge", "edge"]
-    models = ["UNet_Hilbig", "UNet_Hilbig", "UNet_Hilbig"]
-
-    data_loc = r"H:\ws_seg_test\debug_output\REBeleg_Refined"
-    n_classes = 9
-    ks = 32
-    pd = 16
-
-    visu_compared_views_model(
-        data_loc, [weights_loc_0, weights_loc_1, weights_loc_2], models, templates, ks, pd, n_classes
-    )
-
-    '''
-
-    '''
-    weights_loc = r"H:\ws_hpc_workloads\hpc_models\EdgeMCFB_00_UNet_16EL_3f9_crp20000_LR0f0001_DC0f03\EdgeMCFB_00_UNet_16EL_3f9_crp20000_LR0f0001_DC0f03_save_135.pth"
+    weights_loc = r"H:\ws_hpc_workloads\hpc_models\TEST_AUG_UNet_16ELGN_primitive_edge_3f9_crp20000_LR0f0001_DC0f03\TEST_AUG_UNet_16ELGN_primitive_edge_3f9_crp20000_LR0f0001_DC0f03_save_35.pth"
     n_classes = 8
     pd = 8
     ks = 16
     template = "primitive_edge"
-    model = "UNet_16EL"
+    model = "UNet_16ELGN"
 
     data_0 = r"H:\ws_seg_test\debug_output\rot_test_x_up"
     data_1 = r"H:\ws_seg_test\debug_output\rot_test_z_up"
