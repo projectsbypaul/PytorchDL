@@ -228,6 +228,7 @@ class UNet_HilbigGN(nn.Module):
         # ---- Output ----
         self.head  = nn.Conv3d(64, out_channels, kernel_size=1)
 
+
     def forward(self, x):
         # Encoder stage 1
         e1 = self.enc1a(x)          # 64 × 32³
