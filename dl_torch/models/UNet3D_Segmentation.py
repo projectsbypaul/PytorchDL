@@ -107,11 +107,10 @@ class ConvBNReLU3D(nn.Module):
         super().__init__()
         self.conv = nn.Conv3d(in_ch, out_ch, kernel_size=3, padding=1, bias=False)
         self.bn   = nn.BatchNorm3d(out_ch)
-        #self.gn = GN(out_ch)
         self.act  = nn.LeakyReLU(0.1, inplace=True)
 
     def forward(self, x):
-        return self.act(self.gn(self.conv(x)))
+        return self.act(self.bn(self.conv(x)))
 
 class ConvGNReLU3D(nn.Module):
     """Conv3d → BatchNorm3d → LeakyReLU"""

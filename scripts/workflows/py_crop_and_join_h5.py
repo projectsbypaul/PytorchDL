@@ -161,22 +161,12 @@ def main():
 
     n_samples = 20000
     template = "primitive_edge"
-    ignore_index = [5, 6, 7]
+    ignore_index = [6, 7]
     search_str = "h5.gz"
-    h5_out_name = f"abc_ks16_aug_primitive_edge_3f9_crp{n_samples}"
-    target_dir = r"H:\ws_abc_labelling\abc_ks16_aug_primitive_edge_3f9_labels"
+    h5_out_name = f"abc_ks32_aug_primitive_edge_7f9_crp{n_samples}"
+    target_dir = r"H:\ws_abc_labelling\abc_ks32_aug_primitive_edge_7f9_labels"
 
     process_block(n_samples, template, ignore_index, search_str, h5_out_name, target_dir)
-
-    n_samples = 20000
-    template = "primitive"
-    ignore_index = [5, 6]
-    search_str = "h5.gz"
-    h5_out_name = f"abc_ks16_aug_primitive_3f9_crp{n_samples}"
-    target_dir = r"H:\ws_abc_labelling\abc_ks16_aug_primitive_3f9_labels"
-
-    process_block(n_samples, template, ignore_index, search_str, h5_out_name, target_dir)
-
 
 if __name__ == "__main__":
     main()

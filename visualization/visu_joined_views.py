@@ -292,14 +292,14 @@ def visu_input_prediction_mesh(data_loc, weights_loc, obj_loc, model_type, class
 
 
 def main():
-    '''
+    ''' '''
 
     f_name = "REBeleg_Refined"
     data_loc = rf"H:\ws_seg_test\debug_output\{f_name}"
     obj_loc = rf"H:\ws_seg_test\source\{f_name}.obj"
-    weights_loc = r"H:\ws_hpc_workloads\hpc_models\TEST_AUG_UNet_16ELGN_primitive_edge_3f9_crp20000_LR0f0001_DC0f03\TEST_AUG_UNet_16ELGN_primitive_edge_3f9_crp20000_LR0f0001_DC0f03_save_40.pth"
+    weights_loc = r"H:\ws_hpc_workloads\hpc_models\TEST_AUG_BS32_UNet_16EL_primitive_edge_3f9_crp20000_LR0f0001_DC0f03\TEST_AUG_BS32_UNet_16EL_primitive_edge_3f9_crp20000_LR0f0001_DC0f03_save_100.pth"
     template = "primitive_edge"
-    model_type = "UNet_16ELGN"
+    model_type = "UNet_16EL"
     n_classes = 8
     ks = 16
     pd = 8
@@ -309,14 +309,11 @@ def main():
     # visu_mesh_label_on_dir(data_loc, obj_loc, template, ks, pd, n_classes)
     # visu_mesh_input_on_dir(obj_loc, render=True)
     visu_input_prediction_mesh(data_loc, weights_loc, obj_loc, model_type, template, ks, pd, n_classes)
-    '''
 
-    '''  '''
+
+    ''' 
     weights_loc_0 = r"H:\ws_hpc_workloads\hpc_models\EdgeMCFB_00_UNet_16EL_3f9_crp20000_LR0f0001_DC0f03\EdgeMCFB_00_UNet_16EL_3f9_crp20000_LR0f0001_DC0f03_save_40.pth"
     weights_loc_1 = r"H:\ws_hpc_workloads\hpc_models\TEST_AUG_UNet_16ELGN_primitive_edge_3f9_crp20000_LR0f0001_DC0f03\TEST_AUG_UNet_16ELGN_primitive_edge_3f9_crp20000_LR0f0001_DC0f03_save_40.pth"
-
-
-
 
     templates = ["primitive_edge", "primitive_edge"]
     models = ["UNet_16EL", "UNet_16ELGN"]
@@ -330,7 +327,7 @@ def main():
         data_loc, [weights_loc_0, weights_loc_1], models, templates, ks, pd, n_classes
     )
 
-
+    '''
 
     '''  
     weights_loc = r"H:\ws_hpc_workloads\hpc_models\TEST_AUG_UNet_16ELGN_primitive_edge_3f9_crp20000_LR0f0001_DC0f03\TEST_AUG_UNet_16ELGN_primitive_edge_3f9_crp20000_LR0f0001_DC0f03_save_35.pth"
