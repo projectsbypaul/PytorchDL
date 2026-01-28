@@ -141,7 +141,7 @@ class RunTrainingUtility:
         else:
             resume_epoch = int(raw_ep_resume)
 
-        hardcoded_weights = [0.1,1,1,1,1,1,1,1,0.57]
+        hardcoded_weights = [0.1,1,1,1,1,1,1,1,0.75]
 
         train_model_hdf5(
             model_name, hdf5_path, model_weights_loc, epochs, backup_epochs, batch_size,
