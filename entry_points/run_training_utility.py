@@ -141,12 +141,6 @@ class RunTrainingUtility:
         else:
             resume_epoch = int(raw_ep_resume)
 
-        hdf5_stub = hdf5_path.split('.')[0]
-        stat_bin = f"{hdf5_stub}_stats.bin"
-
-        if not os.path.exists(stat_bin):
-            raise FileNotFoundError(f"Not stats file found: {stat_bin}")
-
         hardcoded_weights = [0.1,1,1,1,1,1,1,1,0.57]
 
         train_model_hdf5(
