@@ -118,6 +118,44 @@ class RunTrainingUtility:
             class_weights=mfcb_weights_list
         )
 
+    @staticmethod
+    def run_hdf5_train_hardcoded_weights(model_name: str,
+                            hdf5_path: str,
+                            model_weights_loc: str,
+                            epochs: int,
+                            backup_epochs: int,
+                            batch_size: int,
+                            lr,
+                            decay_order,
+                            split,
+                            use_amp: bool,
+                            val_batch_factor: int,
+                            workers: int,
+                            n_classes: int,
+                            model_seed: int,
+                            model_type: str,
+                            raw_ep_resume: str):
+
+        if raw_ep_resume is None or (isinstance(raw_ep_resume, str) and raw_ep_resume.lower() == "none"):
+            resume_epoch = None
+        else:
+            resume_epoch = int(raw_ep_resume)
+
+        hdf5_stub = hdf5_path.split('.')[0]
+        stat_bin = f"{hdf5_stub}_stats.bin"
+
+        if not os.path.exists(stat_bin):
+            raise FileNotFoundError(f"Not stats file found: {stat_bin}")
+
+        hardcoded_weights = [0.1,1,1,1,1,1,1,1,0.57]
+
+        train_model_hdf5(
+            model_name, hdf5_path, model_weights_loc, epochs, backup_epochs, batch_size,
+            lr, decay_order, split, use_amp, val_batch_factor, workers,
+            n_classes=n_classes, model_seed=model_seed, model_type=model_type, resume_epoch=resume_epoch,
+            class_weights=hardcoded_weights
+        )
+
 
 def main():
     pass

@@ -29,6 +29,7 @@ MODULE_HELP = {
         ),
         "train_fcb": "(same as train)",
         "train_mfcb": "(same as train)",
+        "train_hardcoded_weights": "(same as train)"
     },
     "validation_utility": {
         "val_segmentation_UNet": "model weights data k p n save_dir tag",
@@ -91,7 +92,7 @@ def main():
     p = subparsers.add_parser("train_utility")
     p.add_argument(
         "mode",
-        choices=["train", "train_fcb", "train_mfcb", "help"],
+        choices=["train", "train_hardcoded_weights",  "train_fcb", "train_mfcb", "help"],
     )
     p.add_argument("extra", nargs="*")
 
@@ -188,6 +189,7 @@ def main():
 
             dispatch = {
                 "train": RunTrainingUtility.run_hdf5_train,
+                'train_hardcoded_weights': RunTrainingUtility.run_hdf5_train_hardcoded_weights,
                 "train_fcb": RunTrainingUtility.run_hdf5_train_fcb,
                 "train_mfcb": RunTrainingUtility.run_hdf5_train_mfcb,
             }
