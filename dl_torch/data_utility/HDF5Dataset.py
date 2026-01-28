@@ -2,12 +2,15 @@ import os
 import numpy as np
 import h5py
 import torch
-from numpy.ma.core import shape
+import json
+
+import gc
 from torch.utils.data import Dataset
 from typing import Optional, Tuple, Iterable, Callable, Literal
 from dl_torch.data_utility.InteractiveDataset import InteractiveDataset
 from utility.data_exchange import cppIOexcavator
-
+from concurrent.futures import ProcessPoolExecutor
+from typing import Optional, Literal
 
 class HDF5Dataset(Dataset):
     """
@@ -741,31 +744,262 @@ class HDF5Dataset(Dataset):
                     dset_y[write_off:write_off + n] = fy[:]
                     write_off += n
 
+    @staticmethod
+    def __deserialize_arrays_from_json(json_path: str, target_shape: int, check_datashape=False):
+        # 1. Check if file exists before opening
+        if not os.path.exists(json_path):
+            raise FileNotFoundError(f"The file at {json_path} was not found.")
+
+        with open(json_path, 'r') as file:
+            try:
+                data = json.load(file)
+            except json.JSONDecodeError:
+                raise ValueError(f"Failed to decode JSON from {json_path}. The file might be corrupted.")
+
+        # 2. Extract and convert to numpy arrays
+        try:
+            labels = np.array(data["Label"])
+            segments = np.array(data["NormalizedInput"])
+        except KeyError as e:
+            raise KeyError(f"Missing required key in JSON: {e}")
+
+        if check_datashape:
+            expected_shape = (target_shape, target_shape, target_shape)
+
+            # 3. Validate Shape
+            if labels.shape != expected_shape or segments.shape != expected_shape:
+                raise ValueError(
+                    f"Shape mismatch! Expected {expected_shape}, but got "
+                    f"Labels: {labels.shape} and Segments: {segments.shape}"
+                )
+
+            # 4. Validate Data Types
+            if not np.issubdtype(labels.dtype, np.integer):
+                raise TypeError(f"Labels must be integers, but got {labels.dtype}")
+
+            if not np.issubdtype(segments.dtype, np.floating):
+                raise TypeError(f"Segments must be floats, but got {segments.dtype}")
+
+        return labels, segments
+
+    @staticmethod
+    def __deserialize_arrays_from_json_unsafe(json_path: str, target_shape: int, check_datashape=False):
+        with open(json_path, 'r') as file:
+                data = json.load(file)
+        return np.array(data["Label"]), np.array(data["NormalizedInput"])
+
+    @staticmethod
+    def convert_json_dir_to_hdf5(
+            json_dir: str,
+            out_hdf5: str,
+            *,
+            batch_size: int = 1000,
+            compression: Optional[str] = None,
+            compression_opts: Optional[int] = None,
+            feature_dtype: str = "float32",
+            label_dtype: str = "int64",
+            add_channel_axis: bool = True,
+            channel_position: Literal["first", "last"] = "first",
+    ):
+        """
+        Scans a directory for .json files, loads them using deserialize_arrays_from_json,
+        and saves them into a single HDF5 file.
+        """
+        # 1. Discover files
+        json_files = sorted([
+            os.path.join(json_dir, f) for f in os.listdir(json_dir)
+            if f.lower().endswith(".json")
+        ])
+
+        if not json_files:
+            raise RuntimeError(f"No .json files found in {json_dir}")
+
+        # 2. Pass 1: Determine shapes and total count
+        print(f"[INFO] Scanning {len(json_files)} JSON files for shape info...")
+
+        # We'll peek at the first file to get the target shape automatically
+        sample_labels, sample_features = HDF5Dataset.__deserialize_arrays_from_json(json_files[0], target_shape=0,
+                                                                                  check_datashape=False)
+
+        base_feat_shape = sample_features.shape
+        label_shape = sample_labels.shape
+        total_samples = len(json_files)
+
+        # Handle channel axis logic
+        if add_channel_axis:
+            final_feat_shape = (1, *base_feat_shape) if channel_position == "first" else (*base_feat_shape, 1)
+        else:
+            final_feat_shape = base_feat_shape
+
+        # Initialize buffers to hold a batch of data
+        x_buffer = np.empty((batch_size, *final_feat_shape), dtype=feature_dtype)
+        y_buffer = np.empty((batch_size, *label_shape), dtype=label_dtype)
+
+        buf_idx = 0
+
+        print(f"[INFO] Writing to {out_hdf5} in batches of {batch_size}...")
+
+        # 3. Pass 2: Write to HDF5
+        with h5py.File(out_hdf5, "w") as f:
+            dset_x = f.create_dataset(
+                "features",
+                shape=(total_samples, *final_feat_shape),
+                dtype=feature_dtype,
+                compression=compression,
+                compression_opts=compression_opts,
+            )
+            dset_y = f.create_dataset(
+                "labels",
+                shape=(total_samples, *label_shape),
+                dtype=label_dtype,
+                compression=compression,
+                compression_opts=compression_opts,
+            )
+            glob_min_val = 0
+            glob_max_val = 0
+
+            print(f"[INFO] Writing to {out_hdf5}...")
+
+            for i, json_path in enumerate(json_files):
+                try:
+                    # Choose loader based on unsafe_mode
+                    loader = HDF5Dataset.__deserialize_arrays_from_json
+                    lab, feat = loader(json_path, target_shape=0, check_datashape=False)
+
+                    # Prepare Features with channel axis
+                    x = feat.astype(feature_dtype, copy=False)
+                    if add_channel_axis:
+                        x = x[None, ...] if channel_position == "first" else x[..., None]
+
+                    # Add to buffers
+                    x_buffer[buf_idx] = x
+                    y_buffer[buf_idx] = lab.astype(label_dtype, copy=False)
+                    buf_idx += 1
+
+                    # When buffer is full OR we reached the last file, flush to HDF5
+                    if buf_idx == batch_size or i == total_samples - 1:
+                        start_idx = i - buf_idx + 1
+                        end_idx = i + 1
+
+                        # Write the whole batch at once
+                        dset_x[start_idx:end_idx] = x_buffer[:buf_idx]
+                        dset_y[start_idx:end_idx] = y_buffer[:buf_idx]
+
+                        # Reset buffer index
+                        buf_idx = 0
+
+                    if (i + 1) % batch_size == 0:
+                        print(f"  Processed {i + 1}/{total_samples} files...")
+
+                except Exception as e:
+                    print(f"[WARN] Failed to process {json_path}: {e}")
+
+
+
+            # Metadata
+            f.attrs["source_dir"] = os.path.abspath(json_dir)
+            f.attrs["samples"] = np.int64(total_samples)
+            f.attrs["max_val"] = np.float32(glob_max_val)
+            f.attrs["min_val"] = np.float32(glob_min_val)
+
+        print(f"[SUCCESS] Created {out_hdf5} with {total_samples} samples.")
+
+    @staticmethod
+    def _process_single_json(args):
+        """Worker function to parse JSON in a separate process."""
+        json_path, feature_dtype, label_dtype, add_channel_axis, channel_position = args
+        try:
+            # Import inside worker to ensure visibility
+            # Replace 'HDF5Dataset' with the actual class name if needed
+            loader = HDF5Dataset.__deserialize_arrays_from_json
+            lab, feat = loader(json_path, target_shape=0, check_datashape=False)
+
+            # Prepare Features
+            x = feat.astype(feature_dtype, copy=False)
+            if add_channel_axis:
+                x = x[None, ...] if channel_position == "first" else x[..., None]
+
+            return lab.astype(label_dtype, copy=False), x, None
+        except Exception as e:
+            return None, None, str(e)
+
+    @staticmethod
+    def convert_json_dir_to_hdf5_parallel(
+            json_dir: str,
+            out_hdf5: str,
+            *,
+            compression: Optional[str] = None,
+            compression_opts: Optional[int] = None,
+            feature_dtype: str = "float32",
+            label_dtype: str = "int64",
+            add_channel_axis: bool = True,
+            channel_position: Literal["first", "last"] = "first",
+            batch_size: int = 500,
+            num_workers: int = os.cpu_count() or 4
+    ):
+        # 1. Discover files
+        json_files = sorted([os.path.join(json_dir, f) for f in os.listdir(json_dir) if f.lower().endswith(".json")])
+        total_samples = len(json_files)
+        if not json_files: raise RuntimeError("No files found.")
+
+        # 2. Get metadata from first file
+        sample_lab, sample_feat = HDF5Dataset.__deserialize_arrays_from_json(json_files[0], target_shape=0,
+                                                                                         check_datashape=False)
+        base_feat_shape = sample_feat.shape
+        final_feat_shape = (1, *base_feat_shape) if add_channel_axis and channel_position == "first" else (
+        *base_feat_shape, 1) if add_channel_axis else base_feat_shape
+
+        # 3. Process with Pool
+        print(f"[INFO] Using {num_workers} workers to process {total_samples} files...")
+
+        with h5py.File(out_hdf5, "w") as f:
+            dset_x = f.create_dataset("features", shape=(total_samples, *final_feat_shape),
+                                      dtype=feature_dtype, chunks=(batch_size, *final_feat_shape),
+                                      compression=compression, compression_opts=compression_opts)
+            dset_y = f.create_dataset("labels", shape=(total_samples, *sample_lab.shape),
+                                      dtype=label_dtype, chunks=(batch_size, *sample_lab.shape),
+                                      compression=compression, compression_opts=compression_opts)
+
+            with ProcessPoolExecutor(max_workers=num_workers) as executor:
+                # We will submit tasks in blocks to prevent the internal queue from exploding
+                for batch_start in range(0, total_samples, batch_size):
+                    batch_end = min(batch_start + batch_size, total_samples)
+                    current_batch_files = json_files[batch_start:batch_end]
+
+                    # Map this specific batch
+                    # Using list() forces the batch to complete before moving to the next
+                    worker_args = [(path, feature_dtype, label_dtype, add_channel_axis, channel_position)
+                                   for path in current_batch_files]
+
+                    # Temporary storage for the current batch
+                    results = list(executor.map(HDF5Dataset._process_single_json, worker_args))
+
+                    # Extract data
+                    x_data = np.array([r[1] for r in results if r[2] is None], dtype=feature_dtype)
+                    y_data = np.array([r[0] for r in results if r[2] is None], dtype=label_dtype)
+
+                    # Write to HDF5
+                    actual_count = x_data.shape[0]
+                    dset_x[batch_start: batch_start + actual_count] = x_data
+                    dset_y[batch_start: batch_start + actual_count] = y_data
+
+                    # CRITICAL: Clean up batch memory immediately
+                    del results
+                    del x_data
+                    del y_data
+                    gc.collect()
+
+                    print(f"  Written {batch_end}/{total_samples} samples. RAM cleared.")
+
+        print(f"[SUCCESS] Created {out_hdf5}")
+
+
 def main():
-    '''
-    data_root = r"H:\ws_abc_chunks\source\ABC_chunk_01_ks32swo4nbw8nk3_20250929-101945\ABC_chunk_01_labeled"
-    test_h5 = r"H:\ws_abc_chunks\dataset\inside_outside\cropped\ABC_inside_outside_ks32swo4nbw8nk3_dataset.h5"
-    out_h5 = r"H:\ws_abc_chunks\source\ABC_chunk_01_ks32swo4nbw8nk3_20250929-101945\chunk01.h5"
-    HDF5Dataset.convert_bin_tree_to_hdf5(data_root, out_h5)
-    print("---test---")
-    HDF5Dataset.print_file_info(out_h5)
-    print("---reference---")
-    HDF5Dataset.print_file_info(test_h5)
-    '''
+    json_dir = r"H:\ws_jsondl\json_test"
+    hd5f_out = r"H:\ws_jsondl\json_test_learning_data.h5"
+    HDF5Dataset.convert_json_dir_to_hdf5_parallel(json_dir, hd5f_out, num_workers=16, batch_size=10)
 
-    '''
-    h5_a=r"H:\ws_abc_labelling\export\ABC_ks32swo4nbw8nk3_edge\cropped_ABC_chunk_06_ks32swo4nbw8nk3_20250930-082858_dataset\ABC_chunk_06_ks32swo4nbw8nk3_20250930-082858_dataset_crp20000.h5"
-    h5_b=r"H:\ws_abc_labelling\export\ABC_ks32swo4nbw8nk3_edge\joined_iter005\joined_iter005.h5"
-    h5_ab=r"H:\ws_abc_labelling\export\ABC_ks32swo4nbw8nk3_edge\ABC_ks32swo4nbw8nk3_edge.h5"
-
-    HDF5Dataset.join_hdf5_files([h5_a, h5_b],h5_ab)
-    HDF5Dataset.print_file_info(h5_ab)
-    '''
-
-    bin_dir = r"H:\ws_label_test\label"
-    hdf5_out = r"H:\ws_label_test\label_test_3f0.h5"
-    HDF5Dataset.convert_bin_tree_to_hdf5(bin_dir, hdf5_out)
-
+    HDF5Dataset.print_file_info(hd5f_out)
 
 
 
